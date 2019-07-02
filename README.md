@@ -1,7 +1,5 @@
 # Kiss-Light
 
-> THIS IS AN ARCHIVE LARGELY! PLEASE USE GITLAB MY DOOD!
-
 Yet another RF outlet controller, where it is controlled from a Raspberry Pi, and the client is a simple command line application.
 
 The idea is essentially make it as simple as possible, but still have useful functionality that could easily be used in home automation or just used standalone for DIYers.
