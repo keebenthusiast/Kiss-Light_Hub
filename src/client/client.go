@@ -1,3 +1,9 @@
+/*
+ * Simple client written in Go.
+ *
+ * Written By: Christian Kissinger
+ */
+
 package main
 
 import ( 
