@@ -14,7 +14,8 @@ Wire it up exactly as shown, and it should work.
 
 # Installation (server)
 
-This project is a work in progress, currently runs as a standalone application.
+This project is a work in progress, currently runs as a standalone application,
+though now it can run as a daemon if desired.
 
 make sure the following is installed (on a Raspberry Pi or compatible SBC) prior:
 - wiringPi
@@ -23,6 +24,13 @@ then, just run the following:
 ```
 $ make
 $ sudo ./server
+```
+
+alternatively, we can run the program as a daemon now:
+
+```
+$ make
+$ sudo ./server daemon
 ```
 
 # Installation (client)
