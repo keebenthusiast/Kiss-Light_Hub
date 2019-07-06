@@ -26,6 +26,7 @@
 #include "server.h"
 #include "log.h"
 #include "common.h"
+#include "daemon.h"
 
 int main( int argc, char **argv )
 {
@@ -35,6 +36,15 @@ int main( int argc, char **argv )
      * Initialize Logger
      */
     initialize_logger();
+
+    /*
+     * Run as Daemon if specified.
+     */
+    if ( strcmp(argv[1], "daemon") == 0 )
+    {
+        fprintf( stdout, "running as daemon\n" );
+        run_as_daemon();
+    }
 
      /*
      * Initialize wiringPi

@@ -162,3 +162,8 @@ static void daemonize()
         write( pid_fd, str, strlen(str) );
     }
 }
+
+void run_as_daemon()
+{
+    daemonize();
+}

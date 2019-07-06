@@ -5,6 +5,6 @@
 
 void handle_signal( int sig );
 
-static void daemonize();
+void run_as_daemon();
 
 #endif
