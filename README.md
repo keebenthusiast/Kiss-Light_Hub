@@ -85,4 +85,6 @@ computer ~ %
 
 [jirihnidek](https://github.com/jirihnidek) for example daemon [[repo](https://github.com/jirihnidek/daemon)]
 
+[benhoyt](https://github.com/benhoyt) for ini parser [[repo](https://github.com/benhoyt/inih)]
+
 others I may have missed...
