@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
 
 // socket-related includes
 #include <netinet/in.h>
@@ -45,6 +46,8 @@ int main( int argc, char **argv )
         fprintf( stdout, "running as daemon\n" );
         run_as_daemon();
     }
+    /* Daemon will handle the one signal */
+    signal( SIGINT, handle_signal );
 
      /*
      * Initialize wiringPi
