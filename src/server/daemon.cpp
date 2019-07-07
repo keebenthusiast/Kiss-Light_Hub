@@ -163,7 +163,8 @@ static void daemonize()
     }
 }
 
-/* Function for main function in server.cpp to allow
+/* 
+ * Function for main function in server.cpp to allow
  * running as a daemon.
  */
 void run_as_daemon()

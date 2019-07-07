@@ -87,17 +87,17 @@ void send_rf_signal( int code, int pulse )
 {
     /* toggle switch, given code and pulse */
     RCSwitch sw = RCSwitch();
-    sw.RCSwitch::setPulseLength(pulse);
+    sw.RCSwitch::setPulseLength( pulse );
 
     /* transmit is PIN 0 according to wiringPi */
     /*
      * TODO:
      *  Make this customizable potentially
      */
-    sw.RCSwitch::enableTransmit(0);
+    sw.RCSwitch::enableTransmit( 0 );
 
     /* so 24 is apparently the length of the signal, modify-able? */
-    sw.RCSwitch::send(code, 24);
+    sw.RCSwitch::send( code, 24 );
 }
 
 /* sniff RF signal from a remote (for example) */
