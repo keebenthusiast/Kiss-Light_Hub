@@ -31,6 +31,7 @@ void handle_signal( int sig )
     {
         write_to_log( (char *)"stopping daemon" );
         stop_conf_parser();
+        stop_rc_switch();
 
         /* Unlock and close the lockfile. */
         if ( pid_fd != -1 )
