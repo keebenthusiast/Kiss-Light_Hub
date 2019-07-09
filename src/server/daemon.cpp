@@ -30,6 +30,7 @@ void handle_signal( int sig )
     if ( sig == SIGINT ) 
     {
         write_to_log( (char *)"stopping daemon" );
+        stop_conf_parser();
 
         /* Unlock and close the lockfile. */
         if ( pid_fd != -1 )

@@ -33,6 +33,11 @@ int main( int argc, char **argv )
 {
     int listenfd;
 
+    /* 
+     * Initialize Configuration file
+     */
+    initialize_conf_parser();
+
     /*
      * Initialize Logger
      */
@@ -41,13 +46,18 @@ int main( int argc, char **argv )
     /*
      * Run as Daemon if specified.
      */
-    if ( strcmp(argv[1], "daemon") == 0 )
+    
+    if ( argc >= 2 )
     {
-        fprintf( stdout, "running as daemon\n" );
-        run_as_daemon();
+        if ( strcmp(argv[1], "daemon") == 0 )
+        {
+            fprintf( stdout, "running as daemon\n" );
+            run_as_daemon();
+
+            /* Daemon will handle the one signal */
+            signal( SIGINT, handle_signal );
+        }
     }
-    /* Daemon will handle the one signal */
-    signal( SIGINT, handle_signal );
 
      /*
      * Initialize wiringPi
@@ -89,7 +99,8 @@ static int create_socket()
 {
     int fd;
     struct sockaddr_in serv_addr;
-    
+    char lgbuf[LOG_BUFFER_SIZE];
+
     /* actually create the socket here. */
     fd = socket( AF_INET, SOCK_STREAM, 0 );
 
@@ -108,7 +119,10 @@ static int create_socket()
     /* allow anyone and anything to connect .. for now. */
     serv_addr.sin_addr.s_addr = htonl( INADDR_ANY );
     //inet_pton( AF_INET, IP_ADDR, &serv_addr.sin_addr );
-    serv_addr.sin_port = htons(PORT);
+
+    sprintf( lgbuf,"using port %u", get_int("network", "port", PORT) );
+    write_to_log( lgbuf );
+    serv_addr.sin_port = htons( get_int("network", "port", PORT) );
 
     /* Bind the fd */
     if ( bind( fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr) ) < 0 )
