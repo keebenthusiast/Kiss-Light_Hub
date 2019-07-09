@@ -60,7 +60,8 @@ int main( int argc, char **argv )
     }
 
      /*
-     * Initialize wiringPi
+     * Initialize wiringPi,
+     * and RCSwitch.
      */
     if ( wiringPiSetup() < 0 )
     {
@@ -69,6 +70,8 @@ int main( int argc, char **argv )
         return -1;
     }
     write_to_log( (char *)"WiringPi initialized successfully" );
+
+    initialize_rc_switch();
     
     /*
      * Create socket.
@@ -120,9 +123,9 @@ static int create_socket()
     serv_addr.sin_addr.s_addr = htonl( INADDR_ANY );
     //inet_pton( AF_INET, IP_ADDR, &serv_addr.sin_addr );
 
-    sprintf( lgbuf,"using port %u", get_int("network", "port", PORT) );
+    sprintf( lgbuf,"using port %u", get_int("network", "port", PORT) & 0xffff );
     write_to_log( lgbuf );
-    serv_addr.sin_port = htons( get_int("network", "port", PORT) );
+    serv_addr.sin_port = htons( get_int("network", "port", PORT) & 0xffff );
 
     /* Bind the fd */
     if ( bind( fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr) ) < 0 )
