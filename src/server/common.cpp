@@ -19,6 +19,11 @@
 #include "RCSwitch.h"
 #include "INIReader.h"
 
+
+/* local configuration variables */
+static INIReader *conf;
+static RCSwitch *sw;
+
 /* Get current date and time, useful for the logger */
 void get_current_time( char *buf )
 {
@@ -85,35 +90,40 @@ int parse_input( char *buf, int *n )
     return rv;
 }
 
+/*
+ * Everything related to electrical will reside here. 
+ */
+
+/* Initialize configuration variable, to ini file */
+void initialize_rc_switch()
+{
+    sw = new RCSwitch();
+}
+
+/* Clear out config variable, for a cleaner daemon exit. */
+void stop_rc_switch()
+{
+    delete sw;
+}
+
 /* send RF Signal */
 void send_rf_signal( int code, int pulse )
 {
     /* toggle switch, given code and pulse */
-    RCSwitch sw = RCSwitch();
-    sw.RCSwitch::setPulseLength( pulse );
+    sw->setPulseLength( pulse );
 
     /* transmit is PIN 0 according to wiringPi */
-    /*
-     * TODO:
-     *  Make this customizable potentially
-     */
-    sw.RCSwitch::enableTransmit( 0 );
+    sw->enableTransmit( get_int("electronics", "transmitter_pin", 0) );
 
     /* so 24 is apparently the length of the signal, modify-able? */
-    sw.RCSwitch::send( code, 24 );
+    sw->send( code, 24 );
 }
 
 /* sniff RF signal from a remote (for example) */
 void sniff_rf_signal( int &code, int &pulse )
 {
-    RCSwitch sw = RCSwitch();
-    
     /* receive (sniff) is PIN 2 according to wiringPi */
-    /*
-     * TODO:
-     *  Make this customizable potentially
-     */
-    sw.RCSwitch::enableReceive( 2 );
+    sw->enableReceive( get_int("electronics", "receiver_pin", 2) );
 
     /*
      * Wait until something is found,
@@ -121,23 +131,20 @@ void sniff_rf_signal( int &code, int &pulse )
      */
     while ( 1 )
     {
-        if ( sw.RCSwitch::available() )
+        if ( sw->available() )
         {
-            code = sw.RCSwitch::getReceivedValue();
-            pulse = sw.RCSwitch::getReceivedDelay();
+            code = sw->getReceivedValue();
+            pulse = sw->getReceivedDelay();
             break;
         }
 
-        sw.RCSwitch::resetAvailable();
+        sw->resetAvailable();
     }
 }
 
 /*
  * Everything related to configuration will reside here. 
  */
-
-/* local configuration variable */
-static INIReader *conf;
 
 /* Initialize configuration variable, to ini file */
 void initialize_conf_parser()
@@ -146,7 +153,6 @@ void initialize_conf_parser()
 
     if ( conf->ParseError() < 0 )
     {
-        //write_to_log( (char *)"unable to find configuration file" );
         fprintf( stdout, "Unable to find configuration file\n" );
         exit(1);
     }

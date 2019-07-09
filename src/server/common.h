@@ -13,6 +13,8 @@ void get_current_time( char *buf );
 int parse_input( char *buf, int *n );
 
 /* electrical related */
+void initialize_rc_switch();
+void stop_rc_switch();
 void send_rf_signal( int code, int pulse );
 void sniff_rf_signal( int &code, int &pulse );
 
