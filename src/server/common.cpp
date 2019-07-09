@@ -10,11 +10,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <string>
 
 // local includes
 #include "common.h"
 #include "log.h"
+#include "ini.h"
 #include "RCSwitch.h"
+#include "INIReader.h"
 
 /* Get current date and time, useful for the logger */
 void get_current_time( char *buf )
@@ -127,4 +130,36 @@ void sniff_rf_signal( int &code, int &pulse )
 
         sw.RCSwitch::resetAvailable();
     }
+}
+
+/*
+ * Everything related to configuration will reside here. 
+ */
+
+/* local configuration variable */
+static INIReader *conf;
+
+/* Initialize configuration variable, to ini file */
+void initialize_conf_parser()
+{
+    conf = new INIReader( CONFLOCATION );
+
+    if ( conf->ParseError() < 0 )
+    {
+        //write_to_log( (char *)"unable to find configuration file" );
+        fprintf( stdout, "Unable to find configuration file\n" );
+        exit(1);
+    }
+}
+
+/* Clear out config variable, for a cleaner daemon exit. */
+void stop_conf_parser()
+{
+    delete conf;
+}
+
+/* Extract Integers from ini file. */
+long get_int( const char *section, const char *name, long def_val )
+{
+    return conf->GetInteger( section, name, def_val );
 }
