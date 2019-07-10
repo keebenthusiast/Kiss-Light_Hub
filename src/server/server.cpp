@@ -53,11 +53,11 @@ int main( int argc, char **argv )
         {
             fprintf( stdout, "running as daemon\n" );
             run_as_daemon();
-
-            /* Daemon will handle the one signal */
-            signal( SIGINT, handle_signal );
         }
     }
+
+    /* Daemon will handle the one signal */
+    signal( SIGINT, handle_signal );
 
      /*
      * Initialize wiringPi,
@@ -102,7 +102,7 @@ static int create_socket()
 {
     int fd;
     struct sockaddr_in serv_addr;
-    char lgbuf[LOG_BUFFER_SIZE];
+    char lgbuf[get_int("log", "log_buffer_size", LOG_BUFFER_SIZE)];
 
     /* actually create the socket here. */
     fd = socket( AF_INET, SOCK_STREAM, 0 );
@@ -123,7 +123,7 @@ static int create_socket()
     serv_addr.sin_addr.s_addr = htonl( INADDR_ANY );
     //inet_pton( AF_INET, IP_ADDR, &serv_addr.sin_addr );
 
-    sprintf( lgbuf,"using port %u", get_int("network", "port", PORT) & 0xffff );
+    sprintf( lgbuf,"using port %u", (short)get_int("network", "port", PORT) & 0xffff );
     write_to_log( lgbuf );
     serv_addr.sin_port = htons( get_int("network", "port", PORT) & 0xffff );
 
@@ -142,8 +142,8 @@ static int create_socket()
 static void connection_handler( struct pollfd *connfds, int num )
 {
     int i, n, status;
-    char buf[num][BUFFER_SIZE];
-    memset( buf, 0, BUFFER_SIZE );
+    char buf[num][get_int( "network", "buffer_size", BUFFER_SIZE )];
+    memset( buf, 0, get_int("network", "buffer_size", BUFFER_SIZE) );
 
     for ( i = 1; i <= num; i++ )
     {
@@ -152,7 +152,7 @@ static void connection_handler( struct pollfd *connfds, int num )
         
         if ( connfds[i].revents & POLLIN )
         {
-            n = read( connfds[i].fd, buf[i-1], BUFFER_SIZE );
+            n = read( connfds[i].fd, buf[i-1], get_int("network", "buffer_size", BUFFER_SIZE) );
 
             if ( n == 0 )
             {
@@ -198,7 +198,7 @@ static void connection_handler( struct pollfd *connfds, int num )
 static void network_loop( int listenfd )
 {
     int connfd, maxi = 0, nready, i;
-    char lgbuf[LOG_BUFFER_SIZE];
+    char lgbuf[get_int("log", "log_buffer_size", LOG_BUFFER_SIZE)];
     struct sockaddr_in cli_addr;
     socklen_t cli_addr_len = sizeof(cli_addr);
     struct pollfd clientfds[POLL_SIZE];

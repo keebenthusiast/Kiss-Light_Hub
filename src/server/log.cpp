@@ -21,7 +21,7 @@
 /* Initialize log */
 void initialize_logger()
 {
-    FILE *lg = fopen( LOGLOCATION, "w" );
+    FILE *lg = fopen( get_string("log", "log_location", LOGLOCATION), "w" );
     
     if ( lg == NULL )
     {
@@ -43,7 +43,7 @@ void initialize_logger()
  */
 void write_to_log( char *str )
 {
-    FILE *lg = fopen( LOGLOCATION, "a" );
+    FILE *lg = fopen( get_string("log", "log_location", LOGLOCATION), "a" );
 
     char tm[32];
     get_current_time( tm );

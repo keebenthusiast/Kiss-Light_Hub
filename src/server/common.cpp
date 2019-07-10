@@ -153,7 +153,7 @@ void initialize_conf_parser()
 
     if ( conf->ParseError() < 0 )
     {
-        fprintf( stdout, "Unable to find configuration file\n" );
+        fprintf( stdout, "Unable to find configuration file %s\n", CONFLOCATION );
         exit(1);
     }
 }
