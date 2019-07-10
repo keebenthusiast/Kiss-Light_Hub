@@ -4,6 +4,8 @@ Yet another RF outlet controller, where it is controlled from a Raspberry Pi, an
 
 The idea is essentially make it as simple as possible, but still have useful functionality that could easily be used in home automation or just used standalone for DIYers.
 
+It should be noted that this project is used in conjunction with 433MHz RF modules, it could probably work with 315MHz RF Modules, but that has not been tested currently.
+
 let's dive right into it.
 
 # Wiring
