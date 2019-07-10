@@ -23,5 +23,6 @@ void sniff_rf_signal( int &code, int &pulse );
 void initialize_conf_parser();
 void stop_conf_parser();
 long get_int( const char *section, const char *name, long def_val );
+const char *get_string( const char *section, const char *name, const char *def_val );
 
 #endif
