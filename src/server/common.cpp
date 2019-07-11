@@ -101,12 +101,6 @@ void initialize_rc_switch()
     sw = new RCSwitch();
 }
 
-/* Clear out config variable, for a cleaner daemon exit. */
-void stop_rc_switch()
-{
-    delete sw;
-}
-
 /* send RF Signal */
 void send_rf_signal( int code, int pulse )
 {
@@ -157,12 +151,6 @@ void initialize_conf_parser()
         fprintf( stdout, "Unable to find configuration file %s\n", CONFLOCATION );
         exit(1);
     }
-}
-
-/* Clear out config variable, for a cleaner daemon exit. */
-void stop_conf_parser()
-{
-    delete conf;
 }
 
 /* Extract Integers from ini file. */
