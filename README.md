@@ -21,6 +21,7 @@ though now it can run as a daemon if desired.
 
 make sure the following is installed (on a Raspberry Pi or compatible SBC) prior:
 - wiringPi
+- sqlite3
 
 then, just run the following:
 ```
