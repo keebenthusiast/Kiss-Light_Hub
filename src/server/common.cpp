@@ -21,6 +21,7 @@
 
 
 /* local configuration variables */
+static char strbuf[2048];
 static INIReader *conf;
 static RCSwitch *sw;
 
@@ -173,5 +174,6 @@ long get_int( const char *section, const char *name, long def_val )
 /* Extract Strings from ini file. */
 const char *get_string( const char *section, const char *name, const char *def_val )
 {
-    return conf->GetString( section, name, def_val ).c_str();
+    strcpy( strbuf, conf->GetString(section, name, def_val).c_str() );
+    return strbuf;
 }

@@ -20,6 +20,9 @@
 // local pid file descriptor
 static int pid_fd = -1;
 
+// local isDaemon boolean
+static int isDaemon = 0;
+
 /*  
  * Brief Callback function for handling signals.
  * Param    sig     identifier of signal
@@ -29,21 +32,22 @@ void handle_signal( int sig )
     /* Stop the daemon... cleanly. */
     if ( sig == SIGINT ) 
     {
-        write_to_log( (char *)"stopping daemon" );
-        stop_conf_parser();
-        stop_rc_switch();
-
-        /* Unlock and close the lockfile. */
-        if ( pid_fd != -1 )
+        write_to_log( (char *)"stopping server" );
+        
+        if ( isDaemon )
         {
-            lockf( pid_fd, F_ULOCK, 0 );
-            close( pid_fd );
-        }
+            /* Unlock and close the lockfile. */
+            if ( pid_fd != -1 )
+            {
+                lockf( pid_fd, F_ULOCK, 0 );
+                close( pid_fd );
+            }
 
-        /* Delete lockfile. */
-        if ( PIDFILE != NULL )
-        {
-            unlink( PIDFILE );
+            /* Delete lockfile. */
+            if ( PIDFILE != NULL )
+            {
+                unlink( PIDFILE );
+            }
         }
 
         /* Reset signal handling to default behavior */
@@ -172,4 +176,5 @@ static void daemonize()
 void run_as_daemon()
 {
     daemonize();
+    isDaemon = 1;
 }

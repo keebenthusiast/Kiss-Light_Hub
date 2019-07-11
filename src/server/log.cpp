@@ -25,7 +25,7 @@ void initialize_logger()
     
     if ( lg == NULL )
     {
-        perror( "Error: " );
+        perror( "Error" );
         exit( 1 );
     }
 
