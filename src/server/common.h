@@ -1,7 +1,7 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
-#define CONFLOCATION ((const char*)"/etc/kiss-light.ini")
+#define CONFLOCATION ((const char*)"/etc/kisslight.ini")
 
 /* misc, mostly for logging */
 void get_current_time( char *buf );
