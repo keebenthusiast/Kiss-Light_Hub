@@ -161,7 +161,7 @@ static void connection_handler( struct pollfd *connfds, int num )
                 continue;
             }
 
-            status = parse_input( buf[i-1], &n );
+            status = parse_server_input( buf[i-1], &n );
 
             write( connfds[i].fd, buf[i-1], n );
 
@@ -173,7 +173,7 @@ static void connection_handler( struct pollfd *connfds, int num )
 
                 if ( code <= 0 )
                 {
-                    n = sprintf( buf[i-1], "KL/0.1 404 Unknown Encoding\n" );
+                    n = sprintf( buf[i-1], "KL/0.1 406 Unknown Encoding\n" );
                 }
                 else
                 {

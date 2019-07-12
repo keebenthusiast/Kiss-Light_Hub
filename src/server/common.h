@@ -1,7 +1,8 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
-#define CONFLOCATION ((const char*)"/etc/kisslight.ini")
+#define CONFLOCATION ((const char *)"/etc/kisslight.ini")
+#define DBLOCATION ((const char *)"/var/lib/kisslight/kisslight.db")
 
 /* misc, mostly for logging */
 void get_current_time( char *buf );
@@ -10,7 +11,7 @@ void get_current_time( char *buf );
  * network-related, actual protocol
  * resides here.
  */
-int parse_input( char *buf, int *n );
+int parse_server_input( char *buf, int *n );
 
 /* electrical related */
 void initialize_rc_switch();
