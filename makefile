@@ -1,6 +1,6 @@
 CC=clang++
 CFLAGS=-g -Wall
-LIBLINK=-lwiringPi
+LIBLINK=-lwiringPi -lsqlite3
 OBF=-c
 SRC=src/
 
