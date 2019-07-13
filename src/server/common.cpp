@@ -29,16 +29,23 @@ static RCSwitch *sw;
 /* struct to save data from database, temporarily */
 struct db_dev
 {
-    char *name;
+    char *name[MAX_DEVICES];
     int on;
     int off;
     int pulse;
     int toggle;
+
+    /*
+     * Keep track number of names used,
+     * for the LIST call.
+     */
+    int n = 0;
 };
 static struct db_dev db_access;
 struct db_dev *db_ptr = &db_access;
 
 /* So parse_server_input knows that these exist. */
+static int dump_devices();
 static int select_device( const char *name );
 static int update_toggle( const char *name );
 static int delete_device( const char *name );
@@ -90,12 +97,15 @@ int parse_server_input( char *buf, int *n )
         sscanf( buf, "%s %s", str[0], str[1] );
 
         int error = select_device( str[1] );
-        
+
         /* We don't need the name currently, free it immediately. */
-        if ( db_ptr->name != NULL )
+        if ( db_ptr->name[0] != NULL )
         {
-            free( db_ptr->name );
-            db_ptr->name = NULL;
+            free( db_ptr->name[0] );
+            db_ptr->name[0] = NULL;
+
+            /* reset n too */
+            db_ptr->n = 0;
         }
 
         if ( error == 0 )
@@ -135,11 +145,45 @@ int parse_server_input( char *buf, int *n )
         }
         else if ( error < 0 )
         {
-            *n = sprintf( buf, "KL/0.1 500 Internal Error\n");
+            *n = sprintf( buf, "KL/0.1 500 Internal Error\n" );
         }
         else
         {
             *n = sprintf( buf, "KL/0.1 406 Cannot Toggle Device %s\n", str[1] );
+        }
+    }
+    // LIST KL/version#
+    else if ( strcmp(str[0], "LIST") == 0 )
+    {
+        sscanf( buf, "%s %s", str[0], str[1] );
+
+        int error = dump_devices();
+
+        if ( error == 0 )
+        {
+            *n = sprintf( buf, "KL/0.1 200 Number of Devices %i\n", db_ptr->n );
+
+            for ( int i = 0; i < db_ptr->n; i++ )
+            {
+                /* Add to buffer */
+                strcat( buf, db_ptr->name[i] );
+                strcat( buf, (char *)"\n" );
+                *n += strlen( db_ptr->name[i] ) + 1;
+
+                /* Free some strings */
+                free( db_ptr->name[i] );
+                db_ptr->name[i] = NULL;
+            }
+
+            db_ptr->n = 0;
+        }
+        else if ( error < 0 )
+        {
+            *n = sprintf( buf, "KL/0.1 500 Internal Error\n" );
+        }
+        else
+        {
+            *n = sprintf( buf, "KL/0.1 406 Cannot Retreive Devices\n" );
         }
     }
     // ADD 'name' on_code off_code pulse KL/Version#
@@ -294,8 +338,14 @@ static int callback( void *data, int argc, char **argv, char **azColName )
     {
         if ( strcmp(azColName[i], "dev_name") == 0  )
         {
-            db_ptr->name = (char *) malloc( sizeof(char) * 2048 );
-            strcpy( db_ptr->name, argv[i] );
+            if ( db_ptr->n < MAX_DEVICES )
+            {
+                db_ptr->name[db_ptr->n] = (char *) malloc( sizeof(char) * strlen(argv[i]) );
+                strcpy( db_ptr->name[db_ptr->n], argv[i] );
+
+                /* Increment number of entries used. */
+                db_ptr->n++;
+            }
         }
         else if ( strcmp(azColName[i], "dev_on") == 0 )
         {
@@ -461,7 +511,7 @@ static int delete_device( const char *name )
     }
     else
     {
-        sprintf( lgbuf, "successfully added device '%s' to database", name );
+        sprintf( lgbuf, "successfully removed device '%s' from database", name );
         write_to_log( lgbuf );
         rv = 0;
     }
@@ -512,6 +562,56 @@ static int select_device( const char *name )
     else
     {
         sprintf( lgbuf, "successfully retreived device '%s' data from database", name );
+        write_to_log( lgbuf );
+        rv = 0;
+    }
+
+    sqlite3_close( db );
+
+    return rv;
+}
+
+/* 
+ * Retreive list of devices stored.
+ * Returns 1 when an error occurs,
+ * Returns -1 when unable to open db file
+ * Returns 0 otherwise.
+ */
+static int dump_devices()
+{
+    sqlite3 *db;
+    char *errmsg = 0;
+    int status, rv;
+    char sql[2048];
+    const char *data = "retreiving data\n";
+    char lgbuf[2048];
+
+    /* Open database */
+    status = sqlite3_open( DBLOCATION, &db );
+
+    if ( status )
+    {
+        sprintf( lgbuf, "Can't open database: %s", sqlite3_errmsg(db) );
+        write_to_log( lgbuf );
+        return -1;
+    }
+
+    /* Create the sql statement */
+    sprintf( sql, "SELECT dev_name FROM device;" );
+
+    /* Execute sql statement */
+    status = sqlite3_exec( db, sql, callback, 0, &errmsg );
+
+    if ( status != SQLITE_OK )
+    {
+        sprintf( lgbuf, "sql error: %s", errmsg );
+        write_to_log( lgbuf );
+        sqlite3_free( errmsg );
+        rv = 1;
+    }
+    else
+    {
+        sprintf( lgbuf, "successfully retreived device names from database" );
         write_to_log( lgbuf );
         rv = 0;
     }
