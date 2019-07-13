@@ -95,6 +95,7 @@ int parse_server_input( char *buf, int *n )
         if ( db_ptr->name != NULL )
         {
             free( db_ptr->name );
+            db_ptr->name = NULL;
         }
 
         if ( error == 0 )
