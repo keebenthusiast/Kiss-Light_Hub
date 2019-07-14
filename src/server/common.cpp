@@ -388,7 +388,7 @@ static int update_toggle( const char *name )
     char lgbuf[2048];
 
     /* Open database */
-    status = sqlite3_open( DBLOCATION, &db );
+    status = sqlite3_open( get_string("database", "db_location", DBLOCATION), &db );
 
     if ( status )
     {
@@ -437,7 +437,7 @@ static int add_device( const char *name, int on_code, int off_code, int pulse )
     char lgbuf[2048];
 
     /* Open database */
-    status = sqlite3_open( DBLOCATION, &db );
+    status = sqlite3_open( get_string("database", "db_location", DBLOCATION), &db );
 
     if ( status )
     {
@@ -487,7 +487,7 @@ static int delete_device( const char *name )
     char lgbuf[2048];
 
     /* Open database */
-    status = sqlite3_open( DBLOCATION, &db );
+    status = sqlite3_open( get_string("database", "db_location", DBLOCATION), &db );
 
     if ( status )
     {
@@ -537,7 +537,7 @@ static int select_device( const char *name )
     char lgbuf[2048];
 
     /* Open database */
-    status = sqlite3_open( DBLOCATION, &db );
+    status = sqlite3_open( get_string("database", "db_location", DBLOCATION), &db );
 
     if ( status )
     {
@@ -587,7 +587,7 @@ static int dump_devices()
     char lgbuf[2048];
 
     /* Open database */
-    status = sqlite3_open( DBLOCATION, &db );
+    status = sqlite3_open( get_string("database", "db_location", DBLOCATION), &db );
 
     if ( status )
     {
