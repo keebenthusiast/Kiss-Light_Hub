@@ -13,6 +13,9 @@
 #include <sqlite3.h>
 #include <string>
 
+// electronics-related includes
+#include <wiringPi.h>
+
 // local includes
 #include "common.h"
 #include "log.h"
@@ -25,6 +28,7 @@
 static char strbuf[2048];
 static INIReader *conf;
 static RCSwitch *sw;
+static int LED0, LED1, LED2;
 
 /* struct to save data from database, temporarily */
 struct db_dev
@@ -250,11 +254,11 @@ int parse_server_input( char *buf, int *n )
     return rv;
 }
 
-/*
+/***************************************************************************************
  * Everything related to electrical will reside here. 
- */
+ **************************************************************************************/
 
-/* Initialize configuration variable, to ini file */
+/* initialize sw variable, for RF transmission/receival */
 void initialize_rc_switch()
 {
     sw = new RCSwitch();
@@ -271,6 +275,9 @@ void send_rf_signal( int code, int pulse )
 
     /* so 24 is apparently the length of the signal, modify-able? */
     sw->send( code, 24 );
+
+    /* disable pin after transmission */
+    sw->disableTransmit();
 }
 
 /* sniff RF signal from a remote (for example) */
@@ -294,11 +301,34 @@ void sniff_rf_signal( int &code, int &pulse )
 
         sw->resetAvailable();
     }
+
+    /* disable receive pin after data reception */
+    sw->disableReceive();
+}
+
+/* initialize LEDs, for status indication */
+void initialize_leds()
+{
+    LED0 = get_int( "electronics", "led_pin0", 21 );
+    LED1 = get_int( "electronics", "led_pin1", 22 );
+    LED2 = get_int( "electronics", "led_pin2", 23 );
+
+    pinMode( LED0, OUTPUT );
+    pinMode( LED1, OUTPUT );
+    pinMode( LED2, OUTPUT );
 }
 
 /*
- * Everything related to configuration will reside here. 
+ * Accept basically any value to turn on LEDs. 
+ * Though treating this as a boolean might be easier.
  */
+void set_status_led( int led0, int led1, int led2 );
+{
+}
+
+/***************************************************************************************
+ * Everything related to configuration will reside here. 
+ **************************************************************************************/
 
 /* Initialize configuration variable, to ini file */
 void initialize_conf_parser()
@@ -325,9 +355,9 @@ const char *get_string( const char *section, const char *name, const char *def_v
     return strbuf;
 }
 
-/*
+/***************************************************************************************
  * Everything related to database manipulation will reside here. 
- */
+ **************************************************************************************/
 
 /* callback function for database access */
 static int callback( void *data, int argc, char **argv, char **azColName )
