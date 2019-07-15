@@ -55,30 +55,93 @@ This makes it so there is less to type, but we can alternatively control the dev
 
 It should be noted that numbers here are in decimal, unless otherwise specified.
 
-The port currently being used for this server is ```1155```, so make sure to use that particular port for this program when using telnet.
+The default port for this server is ```1155```, so make sure to use that port, or whatever is set in the configuration for this program when using telnet.
 
 Once connected, the following will transmit the given RF code with the given pulse:
 ```
-TRANSMIT 5592371 189
+Template:
+TRANSMIT <code> <pulse> KL/<version#>
+KL/<version#> 200 Custom Code Sent
+
+Example in practice:
+TRANSMIT 5592371 189 KL/0.1
 KL/0.1 200 Custom Code Sent
 ```
 
-We can also get a code from an RF Remote (for example) that may control
-another desired outlet: 
+A code is acquirable from an RF Remote (for example) that may control
+another desired outlet:
 ```
-SNIFF
+Template:
+SNIFF KL/<version#>
+KL/<version#> 200 Sniffing
+<enter desired button from RF remote>
+KL/<version#> 200 Code: <code> Pulse: <pulse>
+
+Example in Practice:
+SNIFF KL/0.1
 KL/0.1 200 Sniffing
 <enter desired button from RF remote>
 KL/0.1 200 Code: 5592380 Pulse: 188
 ```
 
+Once On and Off codes have been recorded somewhere, it is possible to save
+those to the server's database:
+```
+Template:
+ADD <device name> <on_code> <off_code> <pulse> KL/<version#>
+KL/<version#> 200 Device <device name> Added
+
+Example in practice:
+ADD lamp 5592371 5592380 189 KL/0.1
+KL/0.1 200 Device lamp Added
+```
+
+Toggling the saved device can be done as follows:
+```
+Template:
+TOGGLE <device name> KL/<version#>
+KL/<version#> 200 Device <device name> Toggled
+
+Example in practice:
+TOGGLE lamp KL/0.1
+KL/0.1 200 Device lamp Toggled
+```
+
+Suppose there are several devices added, and it is desired
+that a client knows what devices exist on the server, here
+is how it can be done:
+```
+Template:
+LIST KL/<version#>
+KL/<version#> 200 Number of Devices n
+(n line of device names, up to 30 currently)
+
+Example in Practice:
+LIST KL/0.1
+KL/0.1 200 Number of Devices 1
+lamp
+```
+
+Deleting a device can also be done as follows:
+```
+Template:
+DELETE <device name> KL/0.1
+KL/0.1 200 Device <device name> Deleted
+
+Example in Practice:
+DELETE lamp KL/0.1
+KL/0.1 200 Device lamp Deleted
+```
+
 Finally, exiting from the server fairly cleanly is also doable:
 ```
-Q <or QUIT>
-KL/0.1 200 Goodbye
+Q KL/<version#>
+KL/<version#> 200 Goodbye
 Connection closed by foreign host.
-computer ~ %
+computer ~ $
 ```
+
+****version#** is currently ```0.1```*
 
 # Credits
 
