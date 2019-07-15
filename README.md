@@ -68,7 +68,7 @@ TRANSMIT 5592371 189 KL/0.1
 KL/0.1 200 Custom Code Sent
 ```
 
-A code is acquirable from an RF Remote (for example) that may control
+A code and its pulse is acquirable from an RF Remote (for example) that may control
 another desired outlet:
 ```
 Template:
