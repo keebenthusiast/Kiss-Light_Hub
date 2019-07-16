@@ -6,8 +6,8 @@ SRC=src/
 
 all: kisslight
 
-client: client/client.go
-	go build client/client.go
+client: client/kl-client.go
+	go build client/kl-client.go
 
 kisslight: $(SRC)common.o $(SRC)log.o $(SRC)server.o \
 $(SRC)RCSwitch.o $(SRC)daemon.o $(SRC)ini.o \
@@ -53,4 +53,4 @@ uninstall:
 	rm -rf /var/lib/kisslight
 
 clean:
-	rm -f $(SRC)*.o client server
+	rm -f $(SRC)*.o kl-client kisslight

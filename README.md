@@ -10,9 +10,21 @@ let's dive right into it.
 
 ## Wiring
 
-![RPi wiring](./RPI_RF_433_wiring_diagram.png)
+![RPi wiring](./KissLight_RPI_RF_433_wiring_diagramv2.png)
 
-Wire it up exactly as shown, and it should work.
+The wiring can be done with either the Raspberry Pi 0 W (as shown), or with a regular
+Raspberry Pi. Though this has not been tested with a Raspberry Pi 4 yet.
+
+Make sure to have 3 different colored LEDs, the 3 red LEDs on the diagram are there to indicate that LEDs are a part of this project.
+
+Wiring scheme:
+
+- Red wire is for the small error status LED
+- Green wire is for the all good status LED
+- Blue wire is for the busy status LED
+- Purple wire is for Transmitter and Receiver Data
+- Orange wire is for 5V
+- Black wire is for Ground
 
 ## Installation (server)
 
@@ -37,11 +49,11 @@ Make sure GoLang is installed, and is at least version 1.6 or later.
 For now, this requires you to know what the specific codes are to control your RF outlet,
 the pulse it is okay with, and what IP addresss the Raspberry Pi server has.
 
-Once the code over in ```src/client/client.go``` has the mentioned info, the client can be built as follows:
+Once the code over in ```client/kl-client.go``` has the mentioned info, the client can be built as follows:
 
 ```shell
 make client
-./client
+./kl-client
 ```
 
 This makes it so there is less to type, but the device can alternatively be controlled via telnet.
