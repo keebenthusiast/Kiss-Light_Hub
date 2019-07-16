@@ -1,0 +1,12 @@
+[Unit]
+Description=A simple network-able RF controller
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/kisslight daemon
+ExecStop=/bin/kill -INT $MAINPID
+
+User=root
+
+[Install]
+WantedBy=multi-user.target
