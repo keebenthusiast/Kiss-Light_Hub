@@ -1,4 +1,4 @@
-client
-server
-src/server/*.o
+kl-client
+kisslight
+src/*.o
 
