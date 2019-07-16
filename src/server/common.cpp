@@ -283,6 +283,9 @@ void send_rf_signal( int code, int pulse )
 /* sniff RF signal from a remote (for example) */
 void sniff_rf_signal( int &code, int &pulse )
 {
+    /* indicate the device is busy */
+    set_status_led( LOW, LOW, HIGH );
+
     /* receive (sniff) is PIN 2 according to wiringPi */
     sw->enableReceive( get_int("electronics", "receiver_pin", 2) );
 
@@ -304,6 +307,9 @@ void sniff_rf_signal( int &code, int &pulse )
 
     /* disable receive pin after data reception */
     sw->disableReceive();
+
+    /* indicate the device is ready */
+    set_status_led( LOW, HIGH, LOW );
 }
 
 /* initialize LEDs, for status indication */
@@ -316,14 +322,36 @@ void initialize_leds()
     pinMode( LED0, OUTPUT );
     pinMode( LED1, OUTPUT );
     pinMode( LED2, OUTPUT );
+
+    /* set LED1 on for starters (currently the OK pin) */
+    digitalWrite( LED0, LOW );
+    digitalWrite( LED1, HIGH );
+    digitalWrite( LED2, LOW );
 }
 
 /*
  * Accept basically any value to turn on LEDs. 
  * Though treating this as a boolean might be easier.
  */
-void set_status_led( int led0, int led1, int led2 );
+void set_status_led( int led0, int led1, int led2 )
 {
+    /* Set led0 */
+    if ( led0 > 0 )
+        digitalWrite( LED0, HIGH );
+    else
+        digitalWrite( LED0, LOW );
+
+    /* Set led1 */
+    if ( led1 > 0 )
+        digitalWrite( LED1, HIGH );
+    else
+        digitalWrite( LED1, LOW );
+        
+    /* Set led2 */
+    if ( led2 > 0 )
+        digitalWrite( LED2, HIGH );
+    else
+        digitalWrite( LED2, LOW );
 }
 
 /***************************************************************************************

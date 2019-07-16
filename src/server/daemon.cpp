@@ -50,7 +50,10 @@ void handle_signal( int sig )
             }
         }
 
-        /* Reset signal handling to default behavior */
+        /* Turn off LED's to indicate the daemon isn't running. */
+        set_status_led( 0, 0, 0 );
+
+        /* Reset signal handling to default behavior. */
         signal( SIGINT, SIG_DFL );
     }
     /* Ignore a given SIGCHLD. */

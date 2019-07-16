@@ -18,7 +18,8 @@ int parse_server_input( char *buf, int *n );
 void initialize_rc_switch();
 void send_rf_signal( int code, int pulse );
 void sniff_rf_signal( int &code, int &pulse );
-
+void initialize_leds();
+void set_status_led( int led0, int led1, int led2 );
 
 /* configuration parser related */
 void initialize_conf_parser();

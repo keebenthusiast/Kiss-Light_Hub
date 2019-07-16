@@ -61,7 +61,7 @@ int main( int argc, char **argv )
 
      /*
      * Initialize wiringPi,
-     * and RCSwitch.
+     * RCSwitch, and Status LEDs.
      */
     if ( wiringPiSetup() < 0 )
     {
@@ -72,6 +72,7 @@ int main( int argc, char **argv )
     write_to_log( (char *)"WiringPi initialized successfully" );
 
     initialize_rc_switch();
+    initialize_leds();
     
     /*
      * Create socket.
@@ -83,6 +84,7 @@ int main( int argc, char **argv )
      */
     if ( listen( listenfd, LISTEN_QUEUE ) < 0 )
     {
+        set_status_led( HIGH, HIGH, HIGH );
         perror( "Listening error" );
         write_to_log( (char *)"error listening" );
         return -1;
@@ -109,6 +111,7 @@ static int create_socket()
 
     if ( fd < 0 )
     {
+        set_status_led( HIGH, HIGH, HIGH );
         perror( "error creating socket" );
         write_to_log( (char *)"error creating socket" );
         exit( 1 );
@@ -130,6 +133,7 @@ static int create_socket()
     /* Bind the fd */
     if ( bind( fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr) ) < 0 )
     {
+        set_status_led( HIGH, HIGH, HIGH );
         perror( "Error binding" );
         write_to_log( (char *)"error binding" );
         exit( 1 );
@@ -240,6 +244,7 @@ static void network_loop( int listenfd )
                 }
                 else
                 {
+                    set_status_led( HIGH, HIGH, HIGH );
                     perror( "Error Accepting" );
                     write_to_log( (char *)"error accepting" );
                     exit( 1 );
@@ -249,7 +254,7 @@ static void network_loop( int listenfd )
             /* output to stdout, and write to log as well. */
             fprintf( stdout, "accept new client: %s:%d\n", 
                                  inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port );
-            sprintf( lgbuf,"accept new client: %s:%d", 
+            sprintf( lgbuf, "accept new client: %s:%d", 
                                  inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port );
             write_to_log( lgbuf );
 
@@ -272,6 +277,7 @@ static void network_loop( int listenfd )
              */
             if ( i >= POLL_SIZE )
             {
+                set_status_led( HIGH, LOW, HIGH );
                 fprintf( stderr, "too many clients, exiting...\n" );
                 write_to_log( (char *)"error, too many clients" );
                 exit( 1 );
