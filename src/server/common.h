@@ -9,7 +9,7 @@
 void get_current_time( char *buf );
 
 /* 
- * network-related, actual protocol
+ * network related, actual protocol
  * resides here.
  */
 int parse_server_input( char *buf, int *n );

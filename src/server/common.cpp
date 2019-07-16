@@ -396,7 +396,7 @@ static int callback( void *data, int argc, char **argv, char **azColName )
     {
         if ( strcmp(azColName[i], "dev_name") == 0  )
         {
-            if ( db_ptr->n < MAX_DEVICES )
+            if ( db_ptr->n <= MAX_DEVICES )
             {
                 db_ptr->name[db_ptr->n] = (char *) malloc( sizeof(char) * strlen(argv[i]) );
                 strcpy( db_ptr->name[db_ptr->n], argv[i] );
@@ -493,6 +493,25 @@ static int add_device( const char *name, int on_code, int off_code, int pulse )
     int status, rv;
     char sql[2048];
     char lgbuf[2048];
+
+    /* Check Amount of devices before adding device */
+    dump_devices();
+    for ( int i = 0; i < db_ptr->n; i++ )
+    {
+        /* Free some strings */
+        free( db_ptr->name[i] );
+        db_ptr->name[i] = NULL;
+    }
+
+    if ( db_ptr->n >= MAX_DEVICES )
+    {
+        sprintf( lgbuf, "Max devices reached, max allowed is %i", MAX_DEVICES );
+        write_to_log( lgbuf );
+
+        db_ptr->n = 0;
+
+        return 1;
+    }
 
     /* Open database */
     status = sqlite3_open( get_string("database", "db_location", DBLOCATION), &db );
