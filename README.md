@@ -12,8 +12,8 @@ let's dive right into it.
 
 ![RPi wiring](./KissLight_RPI_RF_433_wiring_diagramv2.png)
 
-The wiring can be done with either the Raspberry Pi 0 W (as shown), or with a regular
-Raspberry Pi. Though this has not been tested with a Raspberry Pi 4 yet.
+The wiring can be done with either the Raspberry Pi 0 W (as shown), or with any
+Raspberry Pi with 40 pins. Though this has not been tested with a Raspberry Pi 4 yet.
 
 Make sure to have 3 different colored LEDs, the 3 red LEDs on the diagram are there to indicate that LEDs are a part of this project.
 
@@ -81,13 +81,13 @@ another desired outlet:
 
 ```plaintext
 Template:
-SNIFF KL/<version#>
+SNIFF
 KL/<version#> 200 Sniffing
 <enter desired button from RF remote>
 KL/<version#> 200 Code: <code> Pulse: <pulse>
 
 Example in Practice:
-SNIFF KL/0.1
+SNIFF
 KL/0.1 200 Sniffing
 <enter desired button from RF remote>
 KL/0.1 200 Code: 5592380 Pulse: 188
@@ -124,12 +124,12 @@ is how it can be done:
 
 ```plaintext
 Template:
-LIST KL/<version#>
+LIST
 KL/<version#> 200 Number of Devices n
 (n line of device names, up to 30 currently)
 
 Example in Practice:
-LIST KL/0.1
+LIST
 KL/0.1 200 Number of Devices 1
 lamp
 ```
@@ -149,7 +149,7 @@ KL/0.1 200 Device lamp Deleted
 Finally, exiting from the server fairly cleanly is also doable:
 
 ```plaintext
-Q KL/<version#>
+Q
 KL/<version#> 200 Goodbye
 Connection closed by foreign host.
 computer ~ $

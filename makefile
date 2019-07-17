@@ -1,4 +1,4 @@
-CC=clang++
+CC=g++
 CFLAGS=-g -Wall
 LIBLINK=-lwiringPi -lsqlite3
 OBF=-c
@@ -41,16 +41,19 @@ ini.o: $(SRC)ini.c $(SRC)ini.h
 install: kisslight
 	cp resources/kisslight.ini /etc/
 	cp resources/kisslight.service /etc/systemd/system/
+	cp kisslight /usr/bin/
 	mkdir /var/lib/kisslight
 	sqlite3 /var/lib/kisslight/kisslight.db < resources/server-db.sql
+	systemctl daemon-reload
 	systemctl start kisslight.service
 	systemctl enable kisslight.service
 
 uninstall:
 	systemctl stop kisslight.service
-	systemctl disalbe kisslight.service
+	systemctl disable kisslight.service
 	rm -f /etc/kisslight.ini /etc/systemd/system/kisslight.service /usr/bin/kisslight
 	rm -rf /var/lib/kisslight
+	systemctl daemon-reload
 
 clean:
 	rm -f $(SRC)*.o kl-client kisslight
