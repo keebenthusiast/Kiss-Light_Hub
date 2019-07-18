@@ -396,7 +396,7 @@ static int callback( void *data, int argc, char **argv, char **azColName )
     {
         if ( strcmp(azColName[i], "dev_name") == 0  )
         {
-            if ( db_ptr->n <= MAX_DEVICES )
+            if ( db_ptr->n < MAX_DEVICES )
             {
                 db_ptr->name[db_ptr->n] = (char *) malloc( sizeof(char) * strlen(argv[i]) );
                 strcpy( db_ptr->name[db_ptr->n], argv[i] );
@@ -482,7 +482,7 @@ static int update_toggle( const char *name )
 
 /* 
  * Insert new entry into database.
- * Returns 1 when an error occurs,
+ * Returns 1 when an SQL error occurs,
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
  */
@@ -495,7 +495,13 @@ static int add_device( const char *name, int on_code, int off_code, int pulse )
     char lgbuf[2048];
 
     /* Check Amount of devices before adding device */
-    dump_devices();
+    status = dump_devices();
+
+    if ( status < 0 )
+    {
+        return -1;
+    }
+
     for ( int i = 0; i < db_ptr->n; i++ )
     {
         /* Free some strings */
@@ -512,6 +518,9 @@ static int add_device( const char *name, int on_code, int off_code, int pulse )
 
         return 1;
     }
+
+    /* Reset db_ptr->n, to eliminate adding errors. */
+    db_ptr->n = 0;
 
     /* Open database */
     status = sqlite3_open( get_string("database", "db_location", DBLOCATION), &db );

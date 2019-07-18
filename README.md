@@ -81,7 +81,7 @@ another desired outlet:
 
 ```plaintext
 Template:
-SNIFF
+SNIFF KL/<version#>
 KL/<version#> 200 Sniffing
 <enter desired button from RF remote>
 KL/<version#> 200 Code: <code> Pulse: <pulse>
@@ -124,7 +124,7 @@ is how it can be done:
 
 ```plaintext
 Template:
-LIST
+LIST KL/<version#>
 KL/<version#> 200 Number of Devices n
 (n line of device names, up to 30 currently)
 
