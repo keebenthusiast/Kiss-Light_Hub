@@ -21,7 +21,7 @@
 /* Initialize log */
 void initialize_logger()
 {
-    FILE *lg = fopen( get_string("log", "log_location", LOGLOCATION), "w" );
+    FILE *lg = fopen( get_string("log", "log_location", LOGLOCATION), "a" );
     
     if ( lg == NULL )
     {
