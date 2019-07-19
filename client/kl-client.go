@@ -25,8 +25,10 @@ func Usage() {
   fmt.Println( "                  " + " send <code> <pulse>" )
   //fmt.Println( "                  " + " setFan <fan device name> " )
   fmt.Println( "\nAdding/deleting devices can be done as follows:\n" )
-  fmt.Println( "Usage: " + os.Args[0] + " add <device name> (--manual --on=On_code|--off=Off_code <pulse>)" )
+  fmt.Println( "Usage: " + os.Args[0] + " add <device name> (--manual <on or off code> <pulse>)" )
   fmt.Println( "                  " + " delete <device name> " )
+  fmt.Println( "\nWe can enter scan mode using the following:\n" )
+  fmt.Println( "Usage: " + os.Args[0] + "scan" )
 }
 
 /* Set device on or off lmao */
@@ -47,9 +49,13 @@ func Toggle( devName string, conn net.Conn ) {
 
   /* Give indication on how well the server responded */ 
   if ( statusCode == 200 ) {
+
     fmt.Printf( "Toggled Device '%s' Successfully\n", devName )
+
   } else {
+
     fmt.Printf( "Cannot Toggle Device '%s'\n", devName )
+
   }
 
 }
@@ -69,9 +75,13 @@ func SendCustomCode( args []string, conn net.Conn ) {
 
   /* Give indication on how well the server responded */ 
   if ( statusCode == 200 ) {
+
     fmt.Printf( "Transmitted code:%d pulse:%d Successfully\n", code, pulse )
+
   } else {
+
     fmt.Printf( "Unable to transmit custom code and pulse\n" )
+
   }
 }
 
@@ -93,11 +103,77 @@ func DeleteDev( devName string, conn net.Conn ) {
 
   /* Give indication on how well the server responded */ 
   if ( statusCode == 200 ) {
+
     fmt.Printf( "Deleted Device '%s' Successfully\n", devName )
+
   } else {
+
     fmt.Printf( "Unable to Delete Device '%s'\n", devName )
+
   }
 
+}
+
+/* Allows user to scan for an RF signal */
+func SniffForCode( conn net.Conn ) int {
+
+  /* Send command */
+  fmt.Fprintf( conn, "SNIFF KL/%.1f\n", KLVersion )
+
+  /* Read, and parse the response */
+  reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+  replyParse := strings.Split( reply, " " )
+  statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
+
+  /* Give indication on how well the server responded */ 
+  if ( statusCode == 200 ) {
+
+    fmt.Printf( "Scanning, please press the desired button\n" )
+
+  } else {
+
+    fmt.Printf( "Unable to scan\n" )
+    return -1
+
+  }
+
+  /* Read, and parse the second response */
+  reply2, _ := bufio.NewReader( conn ).ReadString( '\n' )
+  replyParse2 := strings.Split( reply2, " " )
+  statusCode2, _ := strconv.ParseInt( replyParse2[1], 10, 10 )
+
+  /* Give indication on how well the server responded */ 
+  if ( statusCode2 == 200 ) {
+    
+    var onOrOff string
+    code, _ := strconv.ParseInt( replyParse2[3], 10, 24 )
+    pulseNum := strings.Split( replyParse2[5], "\n" )
+    pulse, _ := strconv.ParseInt( pulseNum[0], 10, 10 )
+
+    if ( (code & 15) == 3 ) {
+
+      onOrOff = "On was scanned."
+
+    } else if ( (code & 15) == 12 ) {
+
+      onOrOff = "Off was scanned."
+
+    } else {
+
+      onOrOff = "Code is invalid."
+
+    }
+
+    fmt.Printf( "Scanning successful, Code=%d, Pulse=%d, %s\n", code, pulse, onOrOff )
+
+  } else {
+
+    fmt.Printf( "Error occurred, likely unknown encoding\n" )
+    return 1
+    
+  }
+
+  return 0
 }
 
 func main() {
@@ -145,6 +221,10 @@ func main() {
   } else if ( os.Args[1] == "delete" ) {
 
     DeleteDev( os.Args[2], conn )
+
+  } else if ( os.Args[1] == "scan" ) {
+
+    SniffForCode( conn )
 
   } else {
 
