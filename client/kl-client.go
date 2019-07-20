@@ -85,9 +85,55 @@ func SendCustomCode( conn net.Conn ) {
   }
 }
 
+/* similar to sniffForCode, but returns code and pulse respectively */
+func getCode( conn net.Conn ) (int64, int64) {
+
+  /* Send command */
+  fmt.Fprintf( conn, "SNIFF KL/%.1f\n", KLVersion )
+
+  /* Read, and parse the response */
+  reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+  replyParse := strings.Split( reply, " " )
+  statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
+
+  /* Give indication on how well the server responded */ 
+  if ( statusCode == 200 ) {
+
+    fmt.Printf( "Scanning, please press the desired button\n" )
+
+  } else {
+
+    fmt.Printf( "Unable to scan, will not add device '%s'\n", os.Args[2] )
+    return -1, -1
+
+  }
+
+  /* Read, and parse the second response */
+  reply2, _ := bufio.NewReader( conn ).ReadString( '\n' )
+  replyParse2 := strings.Split( reply2, " " )
+  statusCode2, _ := strconv.ParseInt( replyParse2[1], 10, 10 )
+
+  /* Give indication on how well the server responded the second time */ 
+  if ( statusCode2 == 200 ) {
+
+    fmt.Printf( "Scanning successful, attempting to add device '%s'\n", os.Args[2] )
+
+    code, _ := strconv.ParseInt( replyParse2[3], 10, 24 )
+    pulseNum := strings.Split( replyParse2[5], "\n" )
+    pulse, _ := strconv.ParseInt( pulseNum[0], 10, 10 )
+
+    return code, pulse
+  
+  } else {
+
+    fmt.Printf( "Error occurred, likely unknown encoding\n" )
+    return -1, -1
+    
+  }
+}
+
 /* Allows user to add device, optionally manually */
 func AddDev( conn net.Conn ) int {
-  
 
   /* make sure arg count is greater than, or equal to 3 before continuing */
   /* Check if user wants to add device manually. */
@@ -134,116 +180,7 @@ func AddDev( conn net.Conn ) int {
 
     } else {
 
-      /* Send command */
-      fmt.Fprintf( conn, "SNIFF KL/%.1f\n", KLVersion )
-
-      /* Read, and parse the response */
-      reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
-      replyParse := strings.Split( reply, " " )
-      statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
-
-      /* Give indication on how well the server responded */ 
-      if ( statusCode == 200 ) {
-
-        fmt.Printf( "Scanning, please press the desired button\n" )
-
-      } else {
-
-        fmt.Printf( "Unable to scan, will not add device '%s'\n", os.Args[2] )
-        return -1
-
-      }
-
-      /* Read, and parse the second response */
-      reply2, _ := bufio.NewReader( conn ).ReadString( '\n' )
-      replyParse2 := strings.Split( reply2, " " )
-      statusCode2, _ := strconv.ParseInt( replyParse2[1], 10, 10 )
-
-      /* Give indication on how well the server responded the second time */ 
-      if ( statusCode2 == 200 ) {
-
-        fmt.Printf( "Scanning successful, attempting to add device '%s'\n", os.Args[2] )
-
-        code, _ := strconv.ParseInt( replyParse2[3], 10, 24 )
-        pulseNum := strings.Split( replyParse2[5], "\n" )
-        pulse, _ := strconv.ParseInt( pulseNum[0], 10, 10 )
-
-        if ( (code & 15) == 3 ) {
-
-          fmt.Fprintf( conn, "ADD %s %d %d %d KL/%.1f\n", os.Args[2], code, (code + 9), pulse, KLVersion )
-
-        } else if ( (code & 15) == 12 ) {
-
-          fmt.Fprintf( conn, "ADD %s %d %d %d KL/%.1f\n", os.Args[2], (code - 9), code, pulse, KLVersion )
-
-        } else {
-
-          fmt.Printf( "Code %d is invalid, not adding.\n", code )
-
-          return 1
-
-        }
-
-        /* Read, and parse the response */
-        reply3, _ := bufio.NewReader( conn ).ReadString( '\n' )
-        replyParse3 := strings.Split( reply3, " " )
-        statusCode3, _ := strconv.ParseInt( replyParse3[1], 10, 10 )
-
-        /* Give indication on how well the server responded */ 
-        if ( statusCode3 == 200 ) {
-
-          fmt.Printf( "Added Device '%s' Successfully\n", os.Args[2] )
-
-        } else {
-
-          fmt.Printf( "Unable to Add Device '%s'\n", os.Args[2] )
-
-        }
-
-      } else {
-
-        fmt.Printf( "Error occurred, likely unknown encoding, will not add device '%s'\n", os.Args[2] )
-        return 1
-    
-      }
-
-    }
-
-  } else {
-
-    /* Send command */
-    fmt.Fprintf( conn, "SNIFF KL/%.1f\n", KLVersion )
-
-    /* Read, and parse the response */
-    reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
-    replyParse := strings.Split( reply, " " )
-    statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
-
-    /* Give indication on how well the server responded */ 
-    if ( statusCode == 200 ) {
-
-      fmt.Printf( "Scanning, please press the desired button\n" )
-
-    } else {
-
-      fmt.Printf( "Unable to scan, will not add device '%s'\n", os.Args[2] )
-      return -1
-
-    }
-
-    /* Read, and parse the second response */
-    reply2, _ := bufio.NewReader( conn ).ReadString( '\n' )
-    replyParse2 := strings.Split( reply2, " " )
-    statusCode2, _ := strconv.ParseInt( replyParse2[1], 10, 10 )
-
-    /* Give indication on how well the server responded the second time */ 
-    if ( statusCode2 == 200 ) {
-
-      fmt.Printf( "Scanning successful, attempting to add device '%s'\n", os.Args[2] )
-
-      code, _ := strconv.ParseInt( replyParse2[3], 10, 24 )
-      pulseNum := strings.Split( replyParse2[5], "\n" )
-      pulse, _ := strconv.ParseInt( pulseNum[0], 10, 10 )
+      code, pulse := getCode( conn )
 
       if ( (code & 15) == 3 ) {
 
@@ -256,7 +193,6 @@ func AddDev( conn net.Conn ) int {
       } else {
 
         fmt.Printf( "Code %d is invalid, not adding.\n", code )
-
         return 1
 
       }
@@ -277,11 +213,41 @@ func AddDev( conn net.Conn ) int {
 
       }
 
+    } 
+
+  } else {
+
+    code, pulse := getCode( conn )
+
+    if ( (code & 15) == 3 ) {
+
+      fmt.Fprintf( conn, "ADD %s %d %d %d KL/%.1f\n", os.Args[2], code, (code + 9), pulse, KLVersion )
+
+    } else if ( (code & 15) == 12 ) {
+
+      fmt.Fprintf( conn, "ADD %s %d %d %d KL/%.1f\n", os.Args[2], (code - 9), code, pulse, KLVersion )
+
     } else {
 
-      fmt.Printf( "Error occurred, likely unknown encoding, will not add device '%s'\n", os.Args[2] )
+      fmt.Printf( "Code %d is invalid, not adding.\n", code )
       return 1
-  
+
+    }
+
+    /* Read, and parse the response */
+    reply3, _ := bufio.NewReader( conn ).ReadString( '\n' )
+    replyParse3 := strings.Split( reply3, " " )
+    statusCode3, _ := strconv.ParseInt( replyParse3[1], 10, 10 )
+
+    /* Give indication on how well the server responded */ 
+    if ( statusCode3 == 200 ) {
+
+      fmt.Printf( "Added Device '%s' Successfully\n", os.Args[2] )
+
+    } else {
+
+      fmt.Printf( "Unable to Add Device '%s'\n", os.Args[2] )
+
     }
 
   }
