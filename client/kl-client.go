@@ -25,13 +25,13 @@ func Usage() {
   fmt.Println( "                  " + " send <code> <pulse>" )
   //fmt.Println( "                  " + " setFan <fan device name> " )
   fmt.Println( "\nAdding/deleting devices can be done as follows:\n" )
-  fmt.Println( "Usage: " + os.Args[0] + " add <device name> (--manual <on or off code> <pulse>)" )
+  fmt.Println( "Usage: " + os.Args[0] + " add <device name> ([--manual|-m] <on or off code> <pulse>)" )
   fmt.Println( "                  " + " delete <device name> " )
   fmt.Println( "\nWe can enter scan mode using the following:\n" )
-  fmt.Println( "Usage: " + os.Args[0] + "scan" )
+  fmt.Println( "Usage: " + os.Args[0] + " scan" )
 }
 
-/* Set device on or off lmao */
+/* Set device on or off */
 func SetDev( devName string, arg string, conn net.Conn ) {
   fmt.Printf( "Not yet Implemented\n" )
 }
@@ -61,11 +61,11 @@ func Toggle( devName string, conn net.Conn ) {
 }
 
 /* Allows the user to send a custom code entirely */
-func SendCustomCode( args []string, conn net.Conn ) {
+func SendCustomCode( conn net.Conn ) {
 
   /* Send command */
-  code, _:= strconv.Atoi(args[2])
-  pulse, _ := strconv.Atoi(args[3])
+  code, _:= strconv.Atoi( os.Args[2] )
+  pulse, _ := strconv.Atoi( os.Args[3] )
   fmt.Fprintf( conn, "TRANSMIT %d %d KL/%.1f\n", code, pulse, KLVersion )
 
   /* Read, and parse the response */
@@ -86,8 +86,53 @@ func SendCustomCode( args []string, conn net.Conn ) {
 }
 
 /* Allows user to add device, optionally manually */
-func AddDev( conn net.Conn ) {
-  fmt.Printf( "Not yet Implemented\n" )
+func AddDev( conn net.Conn ) int {
+  
+  /* Check if user wants to add device manually. */
+  if ( os.Args[3] == "--manual" || os.Args[3] == "-m" ) {
+
+    code, _ := strconv.ParseInt( os.Args[4], 10, 24 )
+    pulse, _ := strconv.ParseInt( os.Args[5], 10, 10 )
+
+    if ( (code & 15) == 12 ) {
+
+      fmt.Fprintf( conn, "ADD %s %d %d %d KL/%.1f\n", os.Args[2], (code - 9), code, pulse, KLVersion )
+
+    } else if ( (code & 15) == 3 ) {
+
+      fmt.Fprintf( conn, "ADD %s %d %d %d KL/%.1f\n", os.Args[2], code, (code + 9), pulse, KLVersion )
+
+    } else {
+      
+      fmt.Printf( "Code %d is invalid, not adding.\n", code )
+
+      return 1
+
+    }
+
+    /* Read, and parse the response */
+    reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+    replyParse := strings.Split( reply, " " )
+    statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
+
+    /* Give indication on how well the server responded */ 
+    if ( statusCode == 200 ) {
+
+      fmt.Printf( "Added Device '%s' Successfully\n", os.Args[2] )
+
+    } else {
+
+      fmt.Printf( "Unable to Add Device '%s'\n", os.Args[2] )
+
+    }
+
+  } else {
+
+    fmt.Printf( "Not yet Implemented\n" )
+
+  }
+
+  return 0
 }
 
 /* Allows user to delete specified device name */
@@ -212,7 +257,7 @@ func main() {
 
   } else if ( os.Args[1] == "send" ) {
 
-    SendCustomCode( os.Args, conn )
+    SendCustomCode( conn )
   
   } else if ( os.Args[1] == "add" ) {
 
