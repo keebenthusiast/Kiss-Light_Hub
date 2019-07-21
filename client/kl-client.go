@@ -32,8 +32,37 @@ func Usage() {
 }
 
 /* Set device on or off */
-func SetDev( devName string, arg string, conn net.Conn ) {
-  fmt.Printf( "Not yet Implemented\n" )
+func SetDev( conn net.Conn ) {
+
+  if ( os.Args[3] == "on" || os.Args[3] == "off" ) {
+
+    arg3 := strings.ToUpper( os.Args[3] )
+
+    /* Send command */
+    fmt.Fprintf( conn, "SET %s %s KL/%.1f\n", os.Args[2], arg3, KLVersion )
+
+    /* Read, and parse the response */
+    reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+    replyParse := strings.Split( reply, " " )
+    statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
+
+    /* Give indication on how well the server responded */ 
+    if ( statusCode == 200 ) {
+
+      fmt.Printf( "Successfully Set Device '%s' %s\n", os.Args[2], os.Args[3] )
+
+    } else {
+
+      fmt.Printf( "Cannot Set Device '%s' %s, %s\n", os.Args[2], os.Args[3], arg3 )
+
+    }
+
+  } else {
+
+    fmt.Printf( "Unknown option %s, must pass in \"on\" or \"off\"\n", os.Args[3] )
+
+  }
+
 }
 
 /* Toggles a device, given a device name is passed through */
@@ -128,7 +157,7 @@ func getCode( conn net.Conn ) (int64, int64) {
 
     fmt.Printf( "Error occurred, likely unknown encoding\n" )
     return -1, -1
-    
+
   }
 }
 
@@ -369,7 +398,7 @@ func main() {
   /* Parse first argument */
   if ( os.Args[1] == "set" ) {
 
-    SetDev( os.Args[2], os.Args[3], conn )
+    SetDev( conn )
 
   } else if ( os.Args[1] == "toggle" ) {
 
