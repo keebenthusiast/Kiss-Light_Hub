@@ -72,8 +72,8 @@ TRANSMIT <code> <pulse> KL/<version#>
 KL/<version#> 200 Custom Code Sent
 
 Example in practice:
-TRANSMIT 5592371 189 KL/0.1
-KL/0.1 200 Custom Code Sent
+TRANSMIT 5592371 189 KL/0.2
+KL/0.2 200 Custom Code Sent
 ```
 
 A code and its pulse is acquirable from an RF Remote (for example) that may control
@@ -88,9 +88,9 @@ KL/<version#> 200 Code: <code> Pulse: <pulse>
 
 Example in Practice:
 SNIFF
-KL/0.1 200 Sniffing
+KL/0.2 200 Sniffing
 <enter desired button from RF remote>
-KL/0.1 200 Code: 5592380 Pulse: 188
+KL/0.2 200 Code: 5592380 Pulse: 188
 ```
 
 Once On and Off codes have been recorded somewhere, it is possible to save
@@ -102,8 +102,8 @@ ADD <device name> <on_code> <off_code> <pulse> KL/<version#>
 KL/<version#> 200 Device <device name> Added
 
 Example in practice:
-ADD lamp 5592371 5592380 189 KL/0.1
-KL/0.1 200 Device lamp Added
+ADD lamp 5592371 5592380 189 KL/0.2
+KL/0.2 200 Device lamp Added
 ```
 
 Toggling the saved device can be done as follows:
@@ -114,8 +114,8 @@ TOGGLE <device name> KL/<version#>
 KL/<version#> 200 Device <device name> Toggled
 
 Example in practice:
-TOGGLE lamp KL/0.1
-KL/0.1 200 Device lamp Toggled
+TOGGLE lamp KL/0.2
+KL/0.2 200 Device lamp Toggled
 ```
 
 Suppose there are several devices added, and it is desired
@@ -130,7 +130,7 @@ KL/<version#> 200 Number of Devices n
 
 Example in Practice:
 LIST
-KL/0.1 200 Number of Devices 1
+KL/0.2 200 Number of Devices 1
 lamp
 ```
 
@@ -138,12 +138,12 @@ Deleting a device can also be done as follows:
 
 ```plaintext
 Template:
-DELETE <device name> KL/0.1
-KL/0.1 200 Device <device name> Deleted
+DELETE <device name> KL/0.2
+KL/0.2 200 Device <device name> Deleted
 
 Example in Practice:
-DELETE lamp KL/0.1
-KL/0.1 200 Device lamp Deleted
+DELETE lamp KL/0.2
+KL/0.2 200 Device lamp Deleted
 ```
 
 Finally, exiting from the server fairly cleanly is also doable:
@@ -155,7 +155,7 @@ Connection closed by foreign host.
 computer ~ $
 ```
 
-****version#** is currently ```0.1```*
+****version#** is currently ```0.2```*
 
 ## Credits
 

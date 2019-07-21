@@ -4,6 +4,7 @@
 #define CONFLOCATION ((const char *)"/etc/kisslight.ini")
 #define DBLOCATION ((const char *)"/var/lib/kisslight/kisslight.db")
 #define MAX_DEVICES 30
+#define KL_VERSION 0.2
 
 /* misc, mostly for logging */
 void get_current_time( char *buf );

@@ -177,12 +177,12 @@ static void connection_handler( struct pollfd *connfds, int num )
 
                 if ( code <= 0 )
                 {
-                    n = sprintf( buf[i-1], "KL/0.1 406 Unknown Encoding\n" );
+                    n = sprintf( buf[i-1], "KL/%.1f 406 Unknown Encoding\n", KL_VERSION );
                 }
                 else
                 {
-                    n = sprintf( buf[i-1], "KL/0.1 200 Code: %i Pulse: %i\n",
-                                 code, pulse );
+                    n = sprintf( buf[i-1], "KL/%.1f 200 Code: %i Pulse: %i\n",
+                                 KL_VERSION, code, pulse );
                 }
 
                 write( connfds[i].fd, buf[i-1], n );

@@ -82,6 +82,7 @@ int parse_server_input( char *buf, int *n )
     int rv = 0;
 
     sscanf( buf, "%s", str[0] );
+
     // TRANSMIT 5592371 189 KL/version#
     if ( strcmp(str[0], "TRANSMIT") == 0 )
     {
@@ -93,7 +94,7 @@ int parse_server_input( char *buf, int *n )
         write_to_log( lgbuf );
 
         /* All done, write the response to the buffer. */
-        *n = sprintf( buf, "KL/0.1 200 Custom Code Sent\n" );
+        *n = sprintf( buf, "KL/%.1f 200 Custom Code Sent\n", KL_VERSION );
     }
     // TOGGLE outlet0 KL/version#
     else if ( strcmp(str[0], "TOGGLE") == 0 )
@@ -126,7 +127,7 @@ int parse_server_input( char *buf, int *n )
                      (db_ptr->toggle) ? db_ptr->on : db_ptr->off, db_ptr->pulse );
             write_to_log( lgbuf );
 
-            *n = sprintf( buf, "KL/0.1 200 Device %s Toggled\n", str[1] );
+            *n = sprintf( buf, "KL/%.1f 200 Device %s Toggled\n", KL_VERSION, str[1] );
 
             /* Toggle the toggle value in database. */
             error = update_toggle( str[1] );
@@ -149,11 +150,11 @@ int parse_server_input( char *buf, int *n )
         }
         else if ( error < 0 )
         {
-            *n = sprintf( buf, "KL/0.1 500 Internal Error\n" );
+            *n = sprintf( buf, "KL/%.1f 500 Internal Error\n", KL_VERSION );
         }
         else
         {
-            *n = sprintf( buf, "KL/0.1 406 Cannot Toggle Device %s\n", str[1] );
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Toggle Device %s\n", KL_VERSION, str[1] );
         }
     }
     // LIST KL/version#
@@ -165,7 +166,7 @@ int parse_server_input( char *buf, int *n )
 
         if ( error == 0 )
         {
-            *n = sprintf( buf, "KL/0.1 200 Number of Devices %i\n", db_ptr->n );
+            *n = sprintf( buf, "KL/%.1f 200 Number of Devices %i\n", KL_VERSION, db_ptr->n );
 
             for ( int i = 0; i < db_ptr->n; i++ )
             {
@@ -183,11 +184,11 @@ int parse_server_input( char *buf, int *n )
         }
         else if ( error < 0 )
         {
-            *n = sprintf( buf, "KL/0.1 500 Internal Error\n" );
+            *n = sprintf( buf, "KL/%.1f 500 Internal Error\n", KL_VERSION );
         }
         else
         {
-            *n = sprintf( buf, "KL/0.1 406 Cannot Retreive Devices\n" );
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Retreive Devices\n", KL_VERSION );
         }
     }
     // ADD 'name' on_code off_code pulse KL/Version#
@@ -202,15 +203,15 @@ int parse_server_input( char *buf, int *n )
 
         if ( error == 0 )
         {
-             *n = sprintf( buf, "KL/0.1 200 Device %s Added\n", str[1] );
+             *n = sprintf( buf, "KL/%.1f 200 Device %s Added\n", KL_VERSION, str[1] );
         }
         else if ( error < 0 )
         {
-            *n = sprintf( buf, "KL/0.1 500 Internal Error\n");
+            *n = sprintf( buf, "KL/%.1f 500 Internal Error\n", KL_VERSION );
         }
         else
         {
-            *n = sprintf( buf, "KL/0.1 406 Cannot Add Device %s\n", str[1] );
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Add Device %s\n", KL_VERSION, str[1] );
         }
     }
     // DELETE 'name' KL/Version#
@@ -222,33 +223,33 @@ int parse_server_input( char *buf, int *n )
 
         if ( error == 0 )
         {
-             *n = sprintf( buf, "KL/0.1 200 Device %s Deleted\n", str[1] );
+             *n = sprintf( buf, "KL/%.1f 200 Device %s Deleted\n", KL_VERSION, str[1] );
         }
         else if ( error < 0 )
         {
-            *n = sprintf( buf, "KL/0.1 500 Internal Error\n");
+            *n = sprintf( buf, "KL/%.1f 500 Internal Error\n", KL_VERSION );
         }
         else
         {
-            *n = sprintf( buf, "KL/0.1 406 Cannot Delete Device %s\n", str[1] );
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Delete Device %s\n", KL_VERSION, str[1] );
         }
     }
     // SNIFF KL/version#
     else if ( strcmp(str[0], "SNIFF") == 0 )
     {
-        *n = sprintf( buf, "KL/0.1 200 Sniffing\n" );
+        *n = sprintf( buf, "KL/%.1f 200 Sniffing\n", KL_VERSION );
         rv = 1;
 
     }
     else if ( strcmp(str[0], "Q") == 0 || strcmp(str[0], "QUIT") == 0 )
     {
         /* If user wants to exit, we'll let them know that their request is granted. */
-        *n = sprintf( buf, "KL/0.1 200 Goodbye\n" );
+        *n = sprintf( buf, "KL/%.1f 200 Goodbye\n", KL_VERSION );
         rv = -1;
     }
     else
     {
-        *n = sprintf( buf, "KL/0.1 400 Bad Request\n" );
+        *n = sprintf( buf, "KL/%.1f 400 Bad Request\n", KL_VERSION );
     }
 
     return rv;
