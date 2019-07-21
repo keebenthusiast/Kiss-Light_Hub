@@ -96,6 +96,49 @@ int parse_server_input( char *buf, int *n )
         /* All done, write the response to the buffer. */
         *n = sprintf( buf, "KL/%.1f 200 Custom Code Sent\n", KL_VERSION );
     }
+    // SET outlet0 [ON|OFF] KL/version#
+    else if ( strcmp(str[0], "SET") == 0 )
+    {
+        sscanf( buf, "%s %s %s %s", str[0], str[1], str[2], str[3] );
+
+        int error = select_device( str[1] );
+
+        /* We don't need the name currently, free it immediately. */
+        if ( db_ptr->name[0] != NULL )
+        {
+            free( db_ptr->name[0] );
+            db_ptr->name[0] = NULL;
+
+            /* reset n too */
+            db_ptr->n = 0;
+        }
+
+        if ( error == 0 )
+        {
+            if ( strcmp(str[2], "ON") == 0 )
+            {
+                send_rf_signal( db_ptr->on, db_ptr->pulse );
+                *n = sprintf( buf, "KL/%.1f 200 Device %s On\n", KL_VERSION, str[1] );
+            }
+            else if ( strcmp(str[2], "OFF") == 0 )
+            {
+                send_rf_signal( db_ptr->off, db_ptr->pulse );
+                *n = sprintf( buf, "KL/%.1f 200 Device %s Off\n", KL_VERSION, str[1] );
+            }
+            else
+            {
+                *n = sprintf( buf, "KL/%.1f 407 Unknown Request; Not On or Off\n", KL_VERSION, str[1] );
+            }
+        }
+        else if ( error < 0 )
+        {
+            *n = sprintf( buf, "KL/%.1f 500 Internal Error\n", KL_VERSION );
+        }
+        else
+        {
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Set Device %s ON or OFF\n", KL_VERSION, str[1] );
+        }
+    }
     // TOGGLE outlet0 KL/version#
     else if ( strcmp(str[0], "TOGGLE") == 0 )
     {
