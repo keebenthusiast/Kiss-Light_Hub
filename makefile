@@ -9,6 +9,15 @@ all: kisslight
 client: client/kl-client.go
 	go build client/kl-client.go
 
+client-install: client
+	mkdir /home/$(USER)/.config/kisslight
+	cp client/kisslight.ini /home/$(USER)/.config/kisslight/
+	sudo cp kl-client /usr/bin/
+
+client-uninstall:
+	rm -r /home/$(USER)/.config/kisslight
+	sudo rm /usr/bin/kl-client
+
 kisslight: $(SRC)common.o $(SRC)log.o $(SRC)server.o \
 $(SRC)RCSwitch.o $(SRC)daemon.o $(SRC)ini.o \
 $(SRC)INIReader.o
