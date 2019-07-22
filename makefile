@@ -11,7 +11,7 @@ client: client/kl-client.go
 
 client-install: client
 	mkdir /home/$(USER)/.config/kisslight
-	cp client/kisslight.ini /home/$(USER)/.config/kisslight/
+	cp client/kl-client.ini /home/$(USER)/.config/kisslight/
 	sudo cp kl-client /usr/bin/
 
 client-uninstall:
