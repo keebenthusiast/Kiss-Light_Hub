@@ -386,14 +386,9 @@ func main() {
     os.Exit( 1 )
   }
 
-  /* connect to this socket */
-  /*
-   * TODO: Figure out how to set default port, and if a port is written
-   * and uncommented from the ini file, use that instead.
-   */
+  /* connect to this socket, and port */
   conn, _ := net.Dial( "tcp", cfg.Section("network").Key("ipaddr").String() + ":" + 
-                       "1155" )
-
+                        strconv.Itoa(cfg.Section("network").Key("port").RangeInt(1155, 1, 65535)) )
 
   /* Parse first argument */
   if ( os.Args[1] == "set" ) {
