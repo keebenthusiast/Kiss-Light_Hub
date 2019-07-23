@@ -106,9 +106,12 @@ int parse_server_input( char *buf, int *n )
         sscanf( buf, "%s %i %i %s", str[0], &c, &p, str[1] );
 
         /* Check protocol version, return if unable to detect */
-        if ( get_protocol_version(str[1]) <= 0.0  )
+        if ( get_protocol_version(str[1]) < 0.1  )
         {
             *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            sprintf( lgbuf, "Invalid data entered by user: %s", str[1] );
+            write_to_log( lgbuf );
 
             /* reset strs */
             strcpy( str[0], "" );
@@ -132,9 +135,12 @@ int parse_server_input( char *buf, int *n )
         sscanf( buf, "%s %s %s %s", str[0], str[1], str[2], str[3] );
 
         /* Check protocol version, return if unable to detect */
-        if ( get_protocol_version(str[3]) <= 0.0  )
+        if ( get_protocol_version(str[3]) < 0.1  )
         {
             *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            sprintf( lgbuf, "Invalid data entered by user: %s", str[3] );
+            write_to_log( lgbuf );
 
             /* reset strs */
             strcpy( str[0], "" );
@@ -189,9 +195,12 @@ int parse_server_input( char *buf, int *n )
         sscanf( buf, "%s %s %s", str[0], str[1], str[2] );
 
         /* Check protocol version, return if unable to detect */
-        if ( get_protocol_version(str[2]) <= 0.0  )
+        if ( get_protocol_version(str[2]) < 0.1  )
         {
             *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            sprintf( lgbuf, "Invalid data entered by user: %s", str[2] );
+            write_to_log( lgbuf );
 
             /* reset strs */
             strcpy( str[0], "" );
@@ -264,9 +273,12 @@ int parse_server_input( char *buf, int *n )
         sscanf( buf, "%s %s", str[0], str[1] );
 
         /* Check protocol version, return if unable to detect */
-        if ( get_protocol_version(str[1]) <= 0.0  )
+        if ( get_protocol_version(str[1]) < 0.1 )
         {
             *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            sprintf( lgbuf, "Invalid data entered by user: %s", str[1] );
+            write_to_log( lgbuf );
 
             /* reset strs */
             strcpy( str[0], "" );
@@ -397,9 +409,12 @@ int parse_server_input( char *buf, int *n )
         sscanf( buf, "%s %s %s", str[0], str[1], str[2] );
 
         /* Check protocol version, return if unable to detect */
-        if ( get_protocol_version(str[2]) <= 0.0  )
+        if ( get_protocol_version(str[2]) < 0.1 )
         {
             *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            sprintf( lgbuf, "Invalid data entered by user: %s", str[2] );
+            write_to_log( lgbuf );
 
             /* reset strs */
             strcpy( str[0], "" );
@@ -431,9 +446,12 @@ int parse_server_input( char *buf, int *n )
         sscanf( buf, "%s %s", str[0], str[1] );
 
         /* Check protocol version, return if unable to detect */
-        if ( get_protocol_version(str[1]) <= 0.0  )
+        if ( get_protocol_version(str[1]) < 0.1 )
         {
             *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            sprintf( lgbuf, "Invalid data entered by user: %s", str[1] );
+            write_to_log( lgbuf );
 
             /* reset strs */
             strcpy( str[0], "" );
