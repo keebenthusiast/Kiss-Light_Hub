@@ -105,6 +105,20 @@ int parse_server_input( char *buf, int *n )
         int c, p;
         sscanf( buf, "%s %i %i %s", str[0], &c, &p, str[1] );
 
+        /* Check protocol version, return if unable to detect */
+        if ( get_protocol_version(str[1]) <= 0.0  )
+        {
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
+            return rv;
+        }
+
         send_rf_signal( c, p );
         sprintf( lgbuf,"entered Code: %i Pulse: %i", c, p );
         write_to_log( lgbuf );
@@ -116,6 +130,20 @@ int parse_server_input( char *buf, int *n )
     else if ( strcmp(str[0], "SET") == 0 )
     {
         sscanf( buf, "%s %s %s %s", str[0], str[1], str[2], str[3] );
+
+        /* Check protocol version, return if unable to detect */
+        if ( get_protocol_version(str[3]) <= 0.0  )
+        {
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
+            return rv;
+        }
 
         int error = select_device( str[1] );
 
@@ -158,7 +186,21 @@ int parse_server_input( char *buf, int *n )
     // TOGGLE outlet0 KL/version#
     else if ( strcmp(str[0], "TOGGLE") == 0 )
     {
-        sscanf( buf, "%s %s", str[0], str[1] );
+        sscanf( buf, "%s %s %s", str[0], str[1], str[2] );
+
+        /* Check protocol version, return if unable to detect */
+        if ( get_protocol_version(str[2]) <= 0.0  )
+        {
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
+            return rv;
+        }
 
         int error = select_device( str[1] );
 
@@ -221,6 +263,20 @@ int parse_server_input( char *buf, int *n )
     {
         sscanf( buf, "%s %s", str[0], str[1] );
 
+        /* Check protocol version, return if unable to detect */
+        if ( get_protocol_version(str[1]) <= 0.0  )
+        {
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
+            return rv;
+        }
+
         int error = dump_devices();
 
         if ( error == 0 )
@@ -261,7 +317,7 @@ int parse_server_input( char *buf, int *n )
         /* Treat as 0.1 input initially. */
         sscanf( buf, "%s %s %i %i %i %s",
                 str[0], str[1], &on, &off, &pulse, str[2] );
-                
+
         /* 
          * Check if str[2] is null, if it is, assume the 
          * protocol is version 0.2 and later.
@@ -269,7 +325,7 @@ int parse_server_input( char *buf, int *n )
          * Otherwise, check to make sure the version is 0.1,
          * anything greater than is incorrect.
          */
-        if ( get_protocol_version(str[2]) < 0.0 || pulse <= 0 )
+        if ( get_protocol_version(str[2]) <= 0.0 || pulse <= 0 )
         {
             int temp;
             sscanf( buf, "%s %s %i %i %s", 
@@ -279,6 +335,12 @@ int parse_server_input( char *buf, int *n )
             if ( get_protocol_version(str[2]) < 0.2 )
             {
                 *n = sprintf( buf, "KL/%.1f 406 Only Supported In KL Version 0.2 and Later\n", KL_VERSION );
+
+                /* reset strs */
+                strcpy( str[0], "" );
+                strcpy( str[1], "" );
+                strcpy( str[2], "" );
+                strcpy( str[3], "" );
 
                 return rv;
             }
@@ -298,10 +360,16 @@ int parse_server_input( char *buf, int *n )
             {
                 *n = sprintf( buf, "KL/%.1f 406 %i Is an Invalid Code\n", KL_VERSION, temp );
                 
+                /* reset strs */
+                strcpy( str[0], "" );
+                strcpy( str[1], "" );
+                strcpy( str[2], "" );
+                strcpy( str[3], "" );
+
                 return rv;
             }
         }
-        else if ( get_protocol_version( str[2] ) >= 0.2 )
+        else if ( get_protocol_version(str[2]) >= 0.2 )
         {
             *n = sprintf( buf, "KL/%.1f 406 Only Supported In Version 0.1\n", KL_VERSION );
 
@@ -326,7 +394,21 @@ int parse_server_input( char *buf, int *n )
     // DELETE 'name' KL/Version#
     else if ( strcmp(str[0], "DELETE") == 0 )
     {
-        sscanf( buf, "%s %s", str[0], str[1] );
+        sscanf( buf, "%s %s %s", str[0], str[1], str[2] );
+
+        /* Check protocol version, return if unable to detect */
+        if ( get_protocol_version(str[2]) <= 0.0  )
+        {
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
+            return rv;
+        }
 
         int error = delete_device( str[1] );
 
@@ -346,9 +428,24 @@ int parse_server_input( char *buf, int *n )
     // SNIFF KL/version#
     else if ( strcmp(str[0], "SNIFF") == 0 )
     {
+        sscanf( buf, "%s %s", str[0], str[1] );
+
+        /* Check protocol version, return if unable to detect */
+        if ( get_protocol_version(str[1]) <= 0.0  )
+        {
+            *n = sprintf( buf, "KL/%.1f 406 Cannot Detect KL Version\n", KL_VERSION );
+
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
+            return rv;
+        }
+
         *n = sprintf( buf, "KL/%.1f 200 Sniffing\n", KL_VERSION );
         rv = 1;
-
     }
     else if ( strcmp(str[0], "Q") == 0 || strcmp(str[0], "QUIT") == 0 )
     {
@@ -360,6 +457,12 @@ int parse_server_input( char *buf, int *n )
     {
         *n = sprintf( buf, "KL/%.1f 400 Bad Request\n", KL_VERSION );
     }
+
+    /* reset strs */
+    strcpy( str[0], "" );
+    strcpy( str[1], "" );
+    strcpy( str[2], "" );
+    strcpy( str[3], "" );
 
     return rv;
 }
