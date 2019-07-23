@@ -27,7 +27,7 @@ func Usage() {
   fmt.Println( "\nAdding/deleting devices can be done as follows:\n" )
   fmt.Println( "Usage: " + os.Args[0] + " add <device name> ([--manual|-m] <on or off code> <pulse>)" )
   fmt.Println( "                  " + " delete <device name> " )
-  fmt.Println( "\nWe can enter scan mode using the following:\n" )
+  fmt.Println( "\nEnter scan mode can be done using the following:\n" )
   fmt.Println( "Usage: " + os.Args[0] + " scan" )
 }
 

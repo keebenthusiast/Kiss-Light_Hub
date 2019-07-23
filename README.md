@@ -46,17 +46,20 @@ And the program should be up and running after the sudo make install step.
 
 Make sure GoLang is installed, and is at least version 1.6 or later.
 
-For now, this requires you to know what the specific codes are to control your RF outlet,
-the pulse it is okay with, and what IP addresss the Raspberry Pi server has.
+All that is needed is the IP addresss the Raspberry Pi (or compatible SBC) kisslight server has,
+and to set this ip address in `client/kl-client.ini` in the `ipaddr` variable:
 
-Once the code over in ```client/kl-client.go``` has the mentioned info, the client can be built as follows:
+Once the ip address of the kisslight server has been set, installation can be done like so:
 
 ```shell
-make client
-./kl-client
+make client-install
 ```
 
-This makes it so there is less to type, but the device can alternatively be controlled via telnet.
+Uninstallation of kisslight client can be done as well:
+
+```shell
+make client-uninstall
+```
 
 ## Using Telnet and How Server Works
 
@@ -87,22 +90,23 @@ KL/<version#> 200 Sniffing
 KL/<version#> 200 Code: <code> Pulse: <pulse>
 
 Example in Practice:
-SNIFF
+SNIFF KL/0.2
 KL/0.2 200 Sniffing
 <enter desired button from RF remote>
 KL/0.2 200 Code: 5592380 Pulse: 188
 ```
 
 Once On and Off codes have been recorded somewhere, it is possible to save
-those to the server's database:
+those to the server's database. As of version `0.2` however, it is now
+possible to only need the On code or Off code to save it, as demonstrated:
 
 ```plaintext
 Template:
-ADD <device name> <on_code> <off_code> <pulse> KL/<version#>
+ADD <device name> <On or Off code> <pulse> KL/<version#>
 KL/<version#> 200 Device <device name> Added
 
 Example in practice:
-ADD lamp 5592371 5592380 189 KL/0.2
+ADD lamp 5592371 189 KL/0.2
 KL/0.2 200 Device lamp Added
 ```
 
@@ -116,6 +120,24 @@ KL/<version#> 200 Device <device name> Toggled
 Example in practice:
 TOGGLE lamp KL/0.2
 KL/0.2 200 Device lamp Toggled
+```
+
+Explicitely setting the saved device on or off is now doable
+as of KL version `0.2`:
+
+```plaintext
+Template:
+SET <device name> <ON or OFF> KL/<version#>
+KL/<version#> 200 Device <device name> <On or Off>
+
+Example in Practice:
+SET lamp ON KL/0.2
+KL/0.2 200 Device lamp On
+
+or
+
+SET lamp OFF KL/0.2
+KL/0.2 200 Device lamp Off
 ```
 
 Suppose there are several devices added, and it is desired
@@ -138,7 +160,7 @@ Deleting a device can also be done as follows:
 
 ```plaintext
 Template:
-DELETE <device name> KL/0.2
+DELETE <device name> KL/<version#>
 KL/0.2 200 Device <device name> Deleted
 
 Example in Practice:
@@ -150,12 +172,95 @@ Finally, exiting from the server fairly cleanly is also doable:
 
 ```plaintext
 Q
-KL/<version#> 200 Goodbye
+KL/0.2> 200 Goodbye
 Connection closed by foreign host.
 computer ~ $
 ```
 
 ****version#** is currently ```0.2```*
+
+## Client Usage
+
+Now that the server has been covered in a fair amount of detail, time for the client.
+
+Like the rest of the project, the client is still being worked on as well.
+
+The usage currently looks like this:
+
+```shell
+computer ~ $ kl-client
+Usage: kl-client set <device name> on|off
+                   toggle <device name>
+                   send <code> <pulse>
+
+Adding/deleting devices can be done as follows:
+
+Usage: kl-client add <device name> ([--manual|-m] <on or off code> <pulse>)
+                   delete <device name>
+
+Entering scan mode can be done using the following:
+
+Usage: kl-client scan
+```
+
+### Example usages of each command
+
+Add device(s):
+
+```shell
+computer ~ $ kl-client add outlet0
+Scanning, please press the desired button <enter desired button from RF remote>
+Scanning successful, attempting to add device 'outlet0'
+Added Device 'outlet0' Successfully
+computer ~ $
+computer ~ $ kl-client add outlet1 -m 5592380 189
+Added Device 'outlet1' Successfully
+```
+
+Set device On or Off directly:
+
+```shell
+computer ~ $ kl-client set outlet0 on
+Successfully Set Device 'outlet0' on
+computer ~ $
+computer ~ $ kl-client set outlet0 off
+Successfully Set Device 'outlet0' off
+```
+
+Toggle device:
+
+```shell
+computer ~ $ kl-client toggle outlet0
+Toggled Device 'outlet0' Successfully
+```
+
+Send custom code:
+
+```shell
+computer ~ $ kl-client send 5592371 189
+Transmitted code:5592371 pulse:189 Successfully
+```
+
+Scan (or sniff) RF signal from RF remote to receiver:
+
+```shell
+computer ~ $ kl-client scan
+Scanning, please press the desired button
+Scanning successful, Code=5592380, Pulse=189, Off was scanned.
+computer ~ $
+computer ~ $ kl-client scan
+Scanning, please press the desired button
+Scanning successful, Code=5592371, Pulse=189, On was scanned.
+```
+
+Finally, delete device:
+
+```shell
+computer ~ $ kl-client delete outlet1
+Deleted Device 'outlet1' Successfully
+```
+
+and that covers at least what would be seen when each command is run succesfully. Anything may very well change in the client, but at least the server should remain largely as is, how devices get added may change though.
 
 ## Credits
 
