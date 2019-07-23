@@ -113,6 +113,12 @@ int parse_server_input( char *buf, int *n )
             sprintf( lgbuf, "Invalid data entered by user: %s", str[1] );
             write_to_log( lgbuf );
 
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
             return rv;
         }
 
@@ -135,6 +141,12 @@ int parse_server_input( char *buf, int *n )
 
             sprintf( lgbuf, "Invalid data entered by user: %s", str[3] );
             write_to_log( lgbuf );
+
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
 
             return rv;
         }
@@ -189,6 +201,12 @@ int parse_server_input( char *buf, int *n )
 
             sprintf( lgbuf, "Invalid data entered by user: %s", str[2] );
             write_to_log( lgbuf );
+
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
 
             return rv;
         }
@@ -262,6 +280,12 @@ int parse_server_input( char *buf, int *n )
             sprintf( lgbuf, "Invalid data entered by user: %s", str[1] );
             write_to_log( lgbuf );
 
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
             return rv;
         }
 
@@ -324,6 +348,12 @@ int parse_server_input( char *buf, int *n )
             {
                 *n = sprintf( buf, "KL/%.1f 406 Only Supported In KL Version 0.2 and Later\n", KL_VERSION );
 
+                /* reset strs */
+                strcpy( str[0], "" );
+                strcpy( str[1], "" );
+                strcpy( str[2], "" );
+                strcpy( str[3], "" );
+
                 return rv;
             }
 
@@ -341,6 +371,12 @@ int parse_server_input( char *buf, int *n )
             else // invalid input
             {
                 *n = sprintf( buf, "KL/%.1f 406 %i Is an Invalid Code\n", KL_VERSION, temp );
+
+                /* reset strs */
+                strcpy( str[0], "" );
+                strcpy( str[1], "" );
+                strcpy( str[2], "" );
+                strcpy( str[3], "" );
 
                 return rv;
             }
@@ -380,6 +416,12 @@ int parse_server_input( char *buf, int *n )
             sprintf( lgbuf, "Invalid data entered by user: %s", str[2] );
             write_to_log( lgbuf );
 
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
             return rv;
         }
 
@@ -411,6 +453,12 @@ int parse_server_input( char *buf, int *n )
             sprintf( lgbuf, "Invalid data entered by user: %s", str[1] );
             write_to_log( lgbuf );
 
+            /* reset strs */
+            strcpy( str[0], "" );
+            strcpy( str[1], "" );
+            strcpy( str[2], "" );
+            strcpy( str[3], "" );
+
             return rv;
         }
 
@@ -427,6 +475,12 @@ int parse_server_input( char *buf, int *n )
     {
         *n = sprintf( buf, "KL/%.1f 400 Bad Request\n", KL_VERSION );
     }
+
+    /* reset strs */
+    strcpy( str[0], "" );
+    strcpy( str[1], "" );
+    strcpy( str[2], "" );
+    strcpy( str[3], "" );
 
     return rv;
 }
