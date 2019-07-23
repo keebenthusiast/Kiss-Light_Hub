@@ -24,9 +24,10 @@ func Usage() {
   fmt.Println( "                  " + " toggle <device name>" )
   fmt.Println( "                  " + " send <code> <pulse>" )
   //fmt.Println( "                  " + " setFan <fan device name> " )
-  fmt.Println( "\nAdding/deleting devices can be done as follows:\n" )
+  fmt.Println( "\nAdding/deleting, and listing devices can be done as follows:\n" )
   fmt.Println( "Usage: " + os.Args[0] + " add <device name> ([--manual|-m] <on or off code> <pulse>)" )
   fmt.Println( "                  " + " delete <device name> " )
+  fmt.Println( "                  " + " list" )
   fmt.Println( "\nEnter scan mode can be done using the following:\n" )
   fmt.Println( "Usage: " + os.Args[0] + " scan" )
 }
@@ -370,6 +371,44 @@ func SniffForCode( conn net.Conn ) int {
   return 0
 }
 
+/* Show user a list of readily-available devices */
+func GetList( conn net.Conn ) {
+
+  /* Send command */
+  fmt.Fprintf( conn, "LIST KL/%.1f\n", KLVersion )
+
+  /* Read, and parse the response */
+  /*reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+  replyParse := strings.Split( reply, " " )
+  statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
+  dev := strings.Split( replyParse[5], "\n" )
+  devCount, _ := strconv.ParseInt( dev[0], 10, 10 )*/
+
+  reply := bufio.NewScanner( conn )
+  reply.Scan()
+  replyParse := strings.Split( reply.Text(), " " )
+  statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
+  dev := strings.Split( replyParse[5], "\n" )
+  devCount, _ := strconv.ParseInt( dev[0], 10, 10 )
+
+  if ( statusCode == 200 ) {
+
+    fmt.Printf( "Here is the list:\n" )
+    
+    for i := int64(0); i < devCount; i++  {
+      
+      reply.Scan()
+      fmt.Printf( "%s\n", reply.Text() )
+
+    }
+
+  } else {
+
+    fmt.Printf( "Error occured, must be on the server's end\n" )
+
+  }
+}
+
 func main() {
 
   /* Check usage count first, print Usage() and exit if insufficient */
@@ -380,7 +419,7 @@ func main() {
 
   /* Get user's home varialbe, and find their ini config */
   usr := os.Getenv( "HOME" )
-  cfg, err := ini.Load( usr + "/.config/kisslight/kisslight.ini" )
+  cfg, err := ini.Load( usr + "/.config/kisslight/kl-client.ini" )
   if ( err != nil ) {
     fmt.Printf( "Unable to load ini file: %v", err )
     os.Exit( 1 )
@@ -414,6 +453,10 @@ func main() {
   } else if ( os.Args[1] == "scan" ) {
 
     SniffForCode( conn )
+
+  } else if ( os.Args[1] == "list" ) {
+
+    GetList( conn )
 
   } else {
 

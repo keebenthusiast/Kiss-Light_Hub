@@ -197,6 +197,7 @@ Adding/deleting devices can be done as follows:
 
 Usage: kl-client add <device name> ([--manual|-m] <on or off code> <pulse>)
                    delete <device name>
+                   list
 
 Entering scan mode can be done using the following:
 
@@ -251,6 +252,15 @@ computer ~ $
 computer ~ $ kl-client scan
 Scanning, please press the desired button
 Scanning successful, Code=5592371, Pulse=189, On was scanned.
+```
+
+List available Devices:
+
+```shell
+computer ~ $ kl-client list
+Here is the list:
+outlet0
+outlet1
 ```
 
 Finally, delete device:
