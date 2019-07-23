@@ -66,10 +66,26 @@ void get_current_time( char *buf )
     strftime( buf, sizeof(buf)+24, "%Y-%m-%d.%X", &tstruct );
 }
 
+/* 
+ * Check protocol version 
+ * return protocol_version if valid
+ * or -1.0 if invalid.
+ */
+float get_protocol_version( char *buf )
+{
+    float protocol;
+    sscanf( buf, "KL/%f", &protocol );
+
+    if ( protocol <= 0.0 || strcmp(buf, "") == 0 )
+        return -1.0;
+    
+    return protocol;
+}
+
 /*
  * Parse whatever the client sent in,
  * Do the task if applicable,
- * And send in the proper response.
+ * And send over the proper response.
  *
  * returns -1 to exit,
  * returns 0 for all is good,
@@ -127,7 +143,7 @@ int parse_server_input( char *buf, int *n )
             }
             else
             {
-                *n = sprintf( buf, "KL/%.1f 407 Unknown Request; Not On or Off\n", KL_VERSION, str[1] );
+                *n = sprintf( buf, "KL/%.1f 406 Unknown Request; Not On or Off\n", KL_VERSION, str[1] );
             }
         }
         else if ( error < 0 )
@@ -234,13 +250,63 @@ int parse_server_input( char *buf, int *n )
             *n = sprintf( buf, "KL/%.1f 406 Cannot Retreive Devices\n", KL_VERSION );
         }
     }
-    // ADD 'name' on_code off_code pulse KL/Version#
-    // ADD outlet0 5592371 5592380 189 KL/version#
+    // ADD 'name' on_code off_code pulse KL/Version# (0.1)
+    // ADD outlet0 5592371 5592380 189 KL/version# 
+    // ADD 'name' <on or off code> pulse KL/Version# (0.2 and later)
+    // ADD outlet0 5592380 189 KL/version#
     else if ( strcmp(str[0], "ADD") == 0 )
     {
-        int on, off, pulse, error;
+        int on = -1, off = -1, pulse = -1, error;
+
+        /* Treat as 0.1 input initially. */
         sscanf( buf, "%s %s %i %i %i %s",
                 str[0], str[1], &on, &off, &pulse, str[2] );
+                
+        /* 
+         * Check if str[2] is null, if it is, assume the 
+         * protocol is version 0.2 and later.
+         * 
+         * Otherwise, check to make sure the version is 0.1,
+         * anything greater than is incorrect.
+         */
+        if ( get_protocol_version(str[2]) < 0.0 || pulse <= 0 )
+        {
+            int temp;
+            sscanf( buf, "%s %s %i %i %s", 
+                    str[0], str[1], &temp, &pulse, str[2] );
+
+            /* If protocol version is invalid, tell the client */
+            if ( get_protocol_version(str[2]) < 0.2 )
+            {
+                *n = sprintf( buf, "KL/%.1f 406 Only Supported In KL Version 0.2 and Later\n", KL_VERSION );
+
+                return rv;
+            }
+
+            /* Convert input into respective on/off values */
+            if ( (temp & 15) == 3 ) // on
+            {
+                on = temp;
+                off = temp + 9;
+            }
+            else if ( (temp & 15) == 12 ) // off
+            {
+                on = temp - 9;
+                off = temp;
+            }
+            else // invalid input
+            {
+                *n = sprintf( buf, "KL/%.1f 406 %i Is an Invalid Code\n", KL_VERSION, temp );
+                
+                return rv;
+            }
+        }
+        else if ( get_protocol_version( str[2] ) >= 0.2 )
+        {
+            *n = sprintf( buf, "KL/%.1f 406 Only Supported In Version 0.1\n", KL_VERSION );
+
+            return rv;
+        }
 
         error = add_device( str[1], on, off, pulse );
 
