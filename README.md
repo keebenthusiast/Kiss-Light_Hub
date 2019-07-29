@@ -213,7 +213,6 @@ computer ~ $ kl-client add outlet0
 Scanning, please press the desired button <enter desired button from RF remote>
 Scanning successful, attempting to add device 'outlet0'
 Added Device 'outlet0' Successfully
-computer ~ $
 computer ~ $ kl-client add outlet1 -m 5592380 189
 Added Device 'outlet1' Successfully
 ```
@@ -223,7 +222,6 @@ Set device On or Off directly:
 ```shell
 computer ~ $ kl-client set outlet0 on
 Successfully Set Device 'outlet0' on
-computer ~ $
 computer ~ $ kl-client set outlet0 off
 Successfully Set Device 'outlet0' off
 ```
@@ -248,7 +246,6 @@ Scan (or sniff) RF signal from RF remote to receiver:
 computer ~ $ kl-client scan
 Scanning, please press the desired button
 Scanning successful, Code=5592380, Pulse=189, Off was scanned.
-computer ~ $
 computer ~ $ kl-client scan
 Scanning, please press the desired button
 Scanning successful, Code=5592371, Pulse=189, On was scanned.
