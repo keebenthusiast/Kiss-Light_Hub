@@ -10,7 +10,7 @@ client: client/kl-client.go
 	go build client/kl-client.go
 
 client-install: client
-	mkdir /home/$(USER)/.config/kisslight
+	mkdir -p /home/$(USER)/.config/kisslight
 	cp client/kl-client.ini /home/$(USER)/.config/kisslight/
 	sudo cp kl-client /usr/bin/
 
