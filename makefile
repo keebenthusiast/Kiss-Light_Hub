@@ -1,51 +1,24 @@
+SRC=src
 CC=g++
 CFLAGS=-g -Wall
-LIBLINK=-lwiringPi -lsqlite3
-OBF=-c
-SRC=src/
+LIBS=-lwiringPi -lsqlite3
+
+_DEPS = common.h daemon.h ini.h \
+INIReader.h log.h RCSwitch.h server.h
+DEPS = $(patsubst %,$(SRC)/%,$(_DEPS))
+
+_OBJ = common.o log.o server.o \
+RCSwitch.o daemon.o ini.o \
+INIReader.o
+OBJ = $(patsubst %,$(SRC)/%,$(_OBJ))
 
 all: kisslight
 
-client: client/kl-client.go
-	go build client/kl-client.go
+%.o: %.cpp $(DEPS)
+	$(CC) -c -o $@ $< $(CFLAGS)
 
-client-install: client
-	mkdir -p /home/$(USER)/.config/kisslight
-	cp client/kl-client.ini /home/$(USER)/.config/kisslight/
-	sudo cp kl-client /usr/bin/
-
-client-uninstall:
-	rm -r /home/$(USER)/.config/kisslight
-	sudo rm /usr/bin/kl-client
-
-kisslight: $(SRC)common.o $(SRC)log.o $(SRC)server.o \
-$(SRC)RCSwitch.o $(SRC)daemon.o $(SRC)ini.o \
-$(SRC)INIReader.o
-	$(CC) $(CFLAGS) $(LIBLINK) $(SRC)common.o \
-	$(SRC)log.o $(SRC)RCSwitch.o \
-	$(SRC)server.o $(SRC)daemon.o \
-	$(SRC)INIReader.o $(SRC)ini.o -o kisslight
-
-common.o: $(SRC)common.cpp $(SRC)common.h
-	$(CC) $(OBF) $(CFLAGS) $(SRC)common.cpp
-
-log.o: $(SRC)log.cpp $(SRC)log.h $(SRC)common.h
-	$(CC) $(OBF) $(CFLAGS) $(SRC)log.cpp
-
-server.o: $(SRC)server.cpp $(SRC)server.h $(SRC)log.h $(SRC)common.h
-	$(CC) $(OBF) $(CFLAG) $(SRC)server.cpp
-
-RCSwitch.o: $(SRC)RCSwitch.cpp $(SRC)RCSwitch.h $(SRC)log.h
-	$(CC) $(OBF) $(CFLAG) $(SRC)RCSwitch.cpp
-
-daemon.o: $(SRC)daemon.cpp $(SRC)daemon.h $(SRC)common.h $(SRC)log.h
-	$(CC) $(OBF) $(CFLAG) $(SRC)daemon.cpp
-
-INIReader.o: $(SRC)INIReader.cpp $(SRC)INIReader.h $(SRC)ini.o
-	$(CC) $(OBF) $(CFLAG) $(SRC)INIReader.cpp
-
-ini.o: $(SRC)ini.c $(SRC)ini.h
-	gcc $(OBF) $(CFLAG) $(SRC)ini.c
+kisslight: $(OBJ)
+	$(CC) $(CFLAGS) $(LIBS) $^ -o ..\$@
 
 install: kisslight
 	cp resources/kisslight.ini /etc/
@@ -63,6 +36,18 @@ uninstall:
 	rm -f /etc/kisslight.ini /etc/systemd/system/kisslight.service /usr/bin/kisslight
 	rm -rf /var/lib/kisslight
 	systemctl daemon-reload
+
+client: client/kl-client.go
+	go build client/kl-client.go
+
+client-install: client
+	mkdir -p /home/$(USER)/.config/kisslight
+	cp client/kl-client.ini /home/$(USER)/.config/kisslight/
+	sudo cp kl-client /usr/bin/
+
+client-uninstall:
+	rm -r /home/$(USER)/.config/kisslight
+	sudo rm /usr/bin/kl-client
 
 clean:
 	rm -f $(SRC)*.o kl-client kisslight

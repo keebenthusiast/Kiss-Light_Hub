@@ -177,7 +177,7 @@ int parse_server_input( char *buf, int *n )
             }
             else
             {
-                *n = sprintf( buf, "KL/%.1f 406 Unknown Request; Not On or Off\n", KL_VERSION, str[1] );
+                *n = sprintf( buf, "KL/%.1f 406 Unknown Request; Not On or Off\n", KL_VERSION );
             }
         }
         else if ( error < 0 )
@@ -850,7 +850,6 @@ static int select_device( const char *name )
     char *errmsg = 0;
     int status, rv;
     char sql[2048];
-    const char *data = "retreiving data\n";
     char lgbuf[2048];
 
     /* Open database */
@@ -900,7 +899,6 @@ static int dump_devices()
     char *errmsg = 0;
     int status, rv;
     char sql[2048];
-    const char *data = "retreiving data\n";
     char lgbuf[2048];
 
     /* Open database */
