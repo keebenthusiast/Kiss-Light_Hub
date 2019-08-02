@@ -4,7 +4,6 @@ Allows for cross-compiling kisslight in Windows (and linux at some point!)
 
 ## Windows
 
----
 this will walk through the process to setup a toolchain on windows
 
 ### toolchain installation
