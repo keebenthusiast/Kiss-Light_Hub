@@ -20,18 +20,6 @@ all: kisslight
 kisslight: $(OBJ)
 	$(CC) $(CFLAGS) $(LIBS) $^ -o ..\$@
 
-client: client/kl-client.go
-	go build client/kl-client.go
-
-client-install: client
-	mkdir -p /home/$(USER)/.config/kisslight
-	cp client/kl-client.ini /home/$(USER)/.config/kisslight/
-	sudo cp kl-client /usr/bin/
-
-client-uninstall:
-	rm -r /home/$(USER)/.config/kisslight
-	sudo rm /usr/bin/kl-client
-
 install: kisslight
 	cp resources/kisslight.ini /etc/
 	cp resources/kisslight.service /etc/systemd/system/
@@ -52,4 +40,4 @@ uninstall:
 .PHONY: clean
 
 clean:
-	del /f $(SRC)\*.o ..\kl-client ..\kisslight
+	del /f $(SRC)\*.o ..\kisslight

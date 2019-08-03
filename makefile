@@ -1,7 +1,7 @@
-SRC=src
-CC=g++
-CFLAGS=-g -Wall
-LIBS=-lwiringPi -lsqlite3
+SRC = src
+CC = g++
+CFLAGS = -g -Wall
+LIBS = -lwiringPi -lsqlite3
 
 _DEPS = common.h daemon.h ini.h \
 INIReader.h log.h RCSwitch.h server.h
@@ -18,7 +18,7 @@ all: kisslight
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 kisslight: $(OBJ)
-	$(CC) $(CFLAGS) $(LIBS) $^ -o ..\$@
+	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
 
 install: kisslight
 	cp resources/kisslight.ini /etc/
