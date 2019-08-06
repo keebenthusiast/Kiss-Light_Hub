@@ -4,7 +4,8 @@ Description=A simple network-able RF controller
 [Service]
 Type=forking
 ExecStart=/usr/bin/kisslight daemon
-ExecStop=/bin/kill -INT $MAINPID
+ExecStop=/bin/kill -2 $MAINPID
+PIDFile=/var/lock/kisslight.pid
 
 User=root
 
