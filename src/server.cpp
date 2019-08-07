@@ -304,7 +304,7 @@ static void network_loop( int listenfd )
         /* If it's exit time, exit cleanly */
         if ( closeSocket > 0 )
         {
-            close( clientfds[0].fd )
+            close( clientfds[0].fd );
             clientfds[0].fd == -1;
             break;
         }
