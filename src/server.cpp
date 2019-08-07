@@ -35,6 +35,11 @@
  */
 static unsigned int closeSocket = 0;
 
+// more server-specific templates
+static int create_socket();
+static void connection_handler(struct pollfd *connfds, int num);
+static void network_loop(int listenfd);
+
 int main( int argc, char **argv )
 {
     int listenfd;
@@ -305,7 +310,7 @@ static void network_loop( int listenfd )
         if ( closeSocket > 0 )
         {
             close( clientfds[0].fd );
-            clientfds[0].fd == -1;
+            clientfds[0].fd = -1;
             break;
         }
     }
