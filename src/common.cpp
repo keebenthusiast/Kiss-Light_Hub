@@ -153,6 +153,12 @@ int parse_server_input( char *buf, int *n )
 
         int error = select_device( str[1] );
 
+        /* Check the count, if zero, device doesn't exist */
+        if ( db_ptr->n <= 0 )
+        {
+            error = 1;
+        }
+
         /* We don't need the name currently, free it immediately. */
         if ( db_ptr->name[0] != NULL )
         {
@@ -230,6 +236,12 @@ int parse_server_input( char *buf, int *n )
         }
 
         int error = select_device( str[1] );
+
+        /* Check the count, if zero, device doesn't exist */
+        if ( db_ptr->n <= 0 )
+        {
+            error = 1;
+        }
 
         /* We don't need the name currently, free it immediately. */
         if ( db_ptr->name[0] != NULL )
