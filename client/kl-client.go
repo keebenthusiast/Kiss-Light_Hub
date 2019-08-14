@@ -54,7 +54,19 @@ func SetDev( conn net.Conn ) {
 
     } else {
 
-      fmt.Printf( "Cannot Set Device '%s' %s, %s\n", os.Args[2], os.Args[3], arg3 )
+      var reason string
+
+      if ( statusCode == 406 ) {
+
+        reason = "No such device"
+      
+      } else {
+
+        reason = "Internal Server Error on device"        
+
+      }
+
+      fmt.Printf( "Cannot Set Device '%s' %s, %s\n", os.Args[2], os.Args[3], reason )
 
     }
 
@@ -67,10 +79,10 @@ func SetDev( conn net.Conn ) {
 }
 
 /* Toggles a device, given a device name is passed through */
-func Toggle( devName string, conn net.Conn ) {
+func Toggle( conn net.Conn ) {
 
   /* Send command */
-  fmt.Fprintf( conn, "TOGGLE %s KL/%.1f\n", devName, KLVersion )
+  fmt.Fprintf( conn, "TOGGLE %s KL/%.1f\n", os.Args[2], KLVersion )
 
   /* Read, and parse the response */
   reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
@@ -80,11 +92,23 @@ func Toggle( devName string, conn net.Conn ) {
   /* Give indication on how well the server responded */ 
   if ( statusCode == 200 ) {
 
-    fmt.Printf( "Toggled Device '%s' Successfully\n", devName )
+    fmt.Printf( "Toggled Device '%s' Successfully\n", os.Args[2] )
 
   } else {
 
-    fmt.Printf( "Cannot Toggle Device '%s'\n", devName )
+    var reason string
+
+      if ( statusCode == 406 ) {
+
+        reason = "No such device"
+      
+      } else {
+
+        reason = "Internal Server Error on device"        
+
+      }
+
+    fmt.Printf( "Cannot Toggle Device '%s', %s\n", os.Args[2], reason )
 
   }
 
@@ -436,7 +460,7 @@ func main() {
 
   } else if ( os.Args[1] == "toggle" ) {
 
-    Toggle( os.Args[2], conn )
+    Toggle( conn )
 
   } else if ( os.Args[1] == "send" ) {
 
