@@ -12,9 +12,7 @@
 
 #define IPADDR ((const unsigned char*)"127.0.0.1")
 
-static int create_socket();
-static void connection_handler(struct pollfd *connfds, int num);
-static void network_loop(int listenfd);
+void close_socket();
 
 enum {
     PORT = 1155,

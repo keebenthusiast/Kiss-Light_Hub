@@ -51,7 +51,7 @@ struct db_dev *db_ptr = &db_access;
 /* So parse_server_input knows that these exist. */
 static int dump_devices();
 static int select_device( const char *name );
-static int update_toggle( const char *name );
+static int update_toggle( const char *name, const int tog );
 static int delete_device( const char *name );
 static int add_device( const char *name, int on_code, int off_code, int pulse );
 
@@ -153,6 +153,12 @@ int parse_server_input( char *buf, int *n )
 
         int error = select_device( str[1] );
 
+        /* Check the count, if zero, device doesn't exist */
+        if ( db_ptr->n <= 0 )
+        {
+            error = 1;
+        }
+
         /* We don't need the name currently, free it immediately. */
         if ( db_ptr->name[0] != NULL )
         {
@@ -167,11 +173,29 @@ int parse_server_input( char *buf, int *n )
         {
             if ( strcmp(str[2], "ON") == 0 )
             {
+                /* Toggle the toggle value in database. */
+                error = update_toggle( str[1], (db_ptr->toggle) ? 1 : 0 );
+
+                if ( error )
+                {
+                    sprintf( lgbuf, "cannot set toggle value for %s", str[1] );
+                    write_to_log( lgbuf );
+                }
+
                 send_rf_signal( db_ptr->on, db_ptr->pulse );
                 *n = sprintf( buf, "KL/%.1f 200 Device %s On\n", KL_VERSION, str[1] );
             }
             else if ( strcmp(str[2], "OFF") == 0 )
             {
+                /* Toggle the toggle value in database. */
+                error = update_toggle( str[1], (! db_ptr->toggle) ? 1 : 0 );
+
+                if ( error )
+                {
+                    sprintf( lgbuf, "cannot set toggle value for %s", str[1] );
+                    write_to_log( lgbuf );
+                }
+
                 send_rf_signal( db_ptr->off, db_ptr->pulse );
                 *n = sprintf( buf, "KL/%.1f 200 Device %s Off\n", KL_VERSION, str[1] );
             }
@@ -213,6 +237,12 @@ int parse_server_input( char *buf, int *n )
 
         int error = select_device( str[1] );
 
+        /* Check the count, if zero, device doesn't exist */
+        if ( db_ptr->n <= 0 )
+        {
+            error = 1;
+        }
+
         /* We don't need the name currently, free it immediately. */
         if ( db_ptr->name[0] != NULL )
         {
@@ -240,7 +270,7 @@ int parse_server_input( char *buf, int *n )
             *n = sprintf( buf, "KL/%.1f 200 Device %s Toggled\n", KL_VERSION, str[1] );
 
             /* Toggle the toggle value in database. */
-            error = update_toggle( str[1] );
+            error = update_toggle( str[1], (! db_ptr->toggle) );
 
             if ( error )
             {
@@ -668,7 +698,7 @@ static int callback( void *data, int argc, char **argv, char **azColName )
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
  */
-static int update_toggle( const char *name )
+static int update_toggle( const char *name, const int tog )
 {
     sqlite3 *db;
     char *errmsg = 0;
@@ -687,7 +717,7 @@ static int update_toggle( const char *name )
     }
 
     /* Create the sql statement */
-    sprintf( sql, "UPDATE device SET dev_toggled=%d WHERE dev_name='%s';", (! db_ptr->toggle), name );
+    sprintf( sql, "UPDATE device SET dev_toggled=%d WHERE dev_name='%s';", tog, name );
 
     /* Execute sql statement */
     status = sqlite3_exec( db, sql, callback, 0, &errmsg );

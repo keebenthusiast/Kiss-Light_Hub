@@ -493,7 +493,7 @@ bool RCSwitch::receiveProtocol1(unsigned int changeCount){
       unsigned long delay = RCSwitch::timings[0] / 31;
       unsigned long delayTolerance = delay * RCSwitch::nReceiveTolerance * 0.01;    
 
-      for (int i = 1; i<changeCount ; i=i+2) {
+      for (unsigned int i = 1; i<changeCount ; i=i+2) {
       
           if (RCSwitch::timings[i] > delay-delayTolerance && RCSwitch::timings[i] < delay+delayTolerance && RCSwitch::timings[i+1] > delay*3-delayTolerance && RCSwitch::timings[i+1] < delay*3+delayTolerance) {
             code = code << 1;
@@ -529,7 +529,7 @@ bool RCSwitch::receiveProtocol2(unsigned int changeCount){
       unsigned long delay = RCSwitch::timings[0] / 10;
       unsigned long delayTolerance = delay * RCSwitch::nReceiveTolerance * 0.01;    
 
-      for (int i = 1; i<changeCount ; i=i+2) {
+      for (unsigned int i = 1; i<changeCount ; i=i+2) {
       
           if (RCSwitch::timings[i] > delay-delayTolerance && RCSwitch::timings[i] < delay+delayTolerance && RCSwitch::timings[i+1] > delay*2-delayTolerance && RCSwitch::timings[i+1] < delay*2+delayTolerance) {
             code = code << 1;

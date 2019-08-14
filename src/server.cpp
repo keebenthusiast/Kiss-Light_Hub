@@ -29,6 +29,17 @@
 #include "common.h"
 #include "daemon.h"
 
+/* 
+ * When exiting, close server's socket,
+ * using this variable
+ */
+static unsigned int closeSocket = 0;
+
+// more server-specific templates
+static int create_socket();
+static void connection_handler(struct pollfd *connfds, int num);
+static void network_loop(int listenfd);
+
 int main( int argc, char **argv )
 {
     int listenfd;
@@ -191,7 +202,7 @@ static void connection_handler( struct pollfd *connfds, int num )
             /* Handle exit if client wants to exit */
             if ( status < 0 )
             {
-                close ( connfds[i].fd );
+                close( connfds[i].fd );
                 connfds[i].fd = -1;
                 continue;
             }
@@ -294,5 +305,18 @@ static void network_loop( int listenfd )
         
         /* handle the actual connection */
         connection_handler( clientfds, maxi );
+
+        /* If it's exit time, exit cleanly */
+        if ( closeSocket > 0 )
+        {
+            close( clientfds[0].fd );
+            clientfds[0].fd = -1;
+            break;
+        }
     }
+}
+
+void close_socket()
+{
+    closeSocket = 1;
 }
