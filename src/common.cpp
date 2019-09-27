@@ -174,7 +174,7 @@ int parse_server_input( char *buf, int *n )
             if ( strcmp(str[2], "ON") == 0 )
             {
                 /* Toggle the toggle value in database. */
-                error = update_toggle( str[1], (db_ptr->toggle) ? 1 : 0 );
+                error = update_toggle( str[1], 1 );
 
                 if ( error )
                 {
@@ -188,7 +188,7 @@ int parse_server_input( char *buf, int *n )
             else if ( strcmp(str[2], "OFF") == 0 )
             {
                 /* Toggle the toggle value in database. */
-                error = update_toggle( str[1], (! db_ptr->toggle) ? 1 : 0 );
+                error = update_toggle( str[1], 0 );
 
                 if ( error )
                 {
