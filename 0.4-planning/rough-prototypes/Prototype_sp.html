@@ -1,0 +1,192 @@
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="Prototype_files/bootstrap.css">
+<script src="Prototype_files/jquery.js"></script>
+<script src="Prototype_files/popper.js"></script>
+<script src="Prototype_files/bootstrap.js"></script>
+</head>
+<body><div class="jumbotron text-center">
+<h1>Kiss-Lite: Home Automation Solutions</h1>
+</div>
+
+<ul class="nav nav-tabs justify-content-center">
+<li class="nav-item">
+<a class="nav-link active" data-toggle="tab" href="#home">Devices</a>
+</li>
+<li class="nav-item">
+<a class="nav-link" data-toggle="tab" href="#menu1">Scheduling</a>
+</li>
+<li class="nav-item">
+<a class="nav-link" data-toggle="tab" href="#menu2">Event</a>
+</li>
+<li class="nav-item">
+<a class="nav-link" data-toggle="tab" href="#menu3">Grouping</a>
+</li>
+</ul>
+
+<div class="tab-content">
+<div class="tab-pane container active" id="home">
+<div class="container">
+<h2>Devices:</h2>
+<table class="table table-hover">
+<thead>
+<tr>
+<th>Device Name</th>
+<th>Staus</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kitchen Lights</td>
+<td>
+<button type="button" class="btn btn-outline-success btn-sm">ON</button>
+</td>
+</tr>
+<tr>
+<td>Far Right Living Room Light</td>
+<td>
+<button type="button" class="btn btn-outline-danger btn-sm">OFF</button>
+</td>
+</tr>
+<tr>
+<td>thermostat</td>
+<td>
+<button type="button" class="btn btn-outline-success btn-sm">ON</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="tab-pane container fade" id="menu1">
+<div class="container">
+<h2>Scheduling:</h2>
+<table class="table table-hover">
+<thead>
+<tr>
+<th>Name</th>
+<th>Frequency</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="clickable" data-toggle="collapse" data-target="#group-of-rows-2" aria-expanded="false" aria-controls="group-of-rows-2">
+<td>Before Getting Home, Weekdays</td>
+<td>Monday, Tuesday, Wendsday, Thursday, Friday</td>
+<td>4:30PM</td>
+</tr>
+</tbody>
+<tbody id="group-of-rows-2" class="collapse">
+<tr>
+<td>All Living Room Lights</td>
+<td></td>
+<td>OFF</td>
+</tr>
+<tr>
+<td>AC Set</td>
+<td></td>
+<td>76</td>
+</tr>
+</tbody>
+<tbody><tr class="clickable" data-toggle="collapse" data-target="#group-of-rows-3" aria-expanded="false" aria-controls="group-of-rows-3">
+<td>After Leaving Home For Work</td>
+<td>Monday, Tuesday, Wendsday, Thursday, Friday</td>
+<td>4:30PM</td>
+</tr>
+</tbody>
+<tbody id="group-of-rows-3" class="collapse">
+<tr>
+<td>All Living Room Lights</td>
+<td></td>
+<td>OFF</td>
+</tr>
+<tr>
+<td>AC Set</td>
+<td></td>
+<td>76</td>
+</tr>
+<tr>
+<td>All dining room Lights</td>
+<td></td>
+<td>OFF</td>
+</tr>
+</tbody>
+<tbody>
+<tr class="clickable" data-toggle="collapse" data-target="#group-of-rows-1" aria-expanded="false" aria-controls="group-of-rows-1">
+<td>Mid-Day</td>
+<td>Saturday, Sunday</td>
+<td>2:30PM</td>
+</tr>
+</tbody>
+<tbody id="group-of-rows-1" class="collapse">
+<tr>
+<td>All Living Room Lights</td>
+<td></td>
+<td>ON</td>
+</tr>
+<tr>
+<td>AC Set</td>
+<td></td>
+<td>76</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="tab-pane container fade" id="menu3">
+<div class="container">
+<h2>Grouping:</h2>
+<table class="table table-hover">
+<thead>
+<tr>
+<th>Group Name</th>
+<th>Device</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>All Kitchen Lights</td>
+<td>Front, Back, Middle</td>
+<td>ON</td>
+</tr>
+<tr>
+<td>Ambient Lighing</td>
+<td>Under Cabinet lighting, Living Room Dimmed</td>
+<td>ON</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="tab-pane container fade" id="menu2">
+<div class="container">
+<h2>Event:</h2>
+<table class="table table-hover">
+<thead>
+<tr>
+<th>Event Name</th>
+<th>Device/Group</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>All Kitchen Lights</td>
+<td>Front, Back, Middle</td>
+<td>ON</td>
+</tr>
+<tr>
+<td>Ambient Lighing</td>
+<td>Under Cabinet lighting, Living Room Dimmed</td>
+<td>ON</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+</body></html>
