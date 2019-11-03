@@ -269,7 +269,7 @@ func AddDev( conn net.Conn ) int {
 
     } 
 
-  } else {
+  } else if ( len(os.Args) == 3 ) {
 
     code, pulse := getCode( conn )
 
@@ -303,6 +303,10 @@ func AddDev( conn net.Conn ) int {
       fmt.Printf( "Unable to Add Device '%s'\n", os.Args[2] )
 
     }
+
+  } else {
+
+    fmt.Printf( "Unable to Add Device, no device name specified.\n" )
 
   }
 
