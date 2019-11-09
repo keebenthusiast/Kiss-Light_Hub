@@ -65,7 +65,9 @@
   }
 
   header nav ul li a:hover {
-      color: rgb( 153, 0, 153 );
+      color: rgb(0, 0, 0);
+      font-weight: bold;
+      background-color: rgb(85, 255, 51);
   }
 
   /*
@@ -77,8 +79,9 @@
        padding-top: 10px;
        font-size: 0.70em;
        font-style: normal;
+       font-weight: bold;
        text-align: center;
-       color: rgb( 0, 0, 0 );
+       color: rgb(255, 255, 255);
        background-color: rgb(51, 204, 255);
        margin: 20px 0px;
    }
