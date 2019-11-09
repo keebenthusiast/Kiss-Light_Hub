@@ -1,0 +1,84 @@
+/*
+    kl_layout.css
+
+    helps structure the basic layout for the
+    kiss-light web interface.
+
+    kiss-light layout styles
+    Author(s): Christian Kissinger
+    Date: 11-9-2019
+ */
+
+ /*
+  * default styles 
+  */
+ * {
+     margin: 0px;
+     list-style: none;
+ }
+
+ header, section, footer, nav {
+     display: block;
+ }
+
+ /* 
+  * header styles 
+  */
+ /* for where the logo will reside */
+ header h1 {
+     background-color: rgb(51, 204, 255);
+     color: white;
+ }
+
+ /* for navigation */
+ header {
+     background-color: rgb(51, 204, 255);
+ }
+
+ /*
+  * Body styles 
+  */
+ body {
+     margin: 0;
+     height: 100%;
+     background-color: white;
+     font-family: Arial, Helvetica, sans-serif;
+     margin: 0px auto;
+ }
+
+ /* 
+  * Navigation lists style 
+  */
+
+  header nav ul li {
+      display: inline;
+      font-size: 1.0em;
+      font-family: 'Courier New', monospace;
+      background-color: white;
+      padding: 0px 10px;
+      margin: 0px;
+  }
+
+  header nav ul li a {
+      text-decoration: none;
+      color: rgb( 0, 0, 0 );
+  }
+
+  header nav ul li a:hover {
+      color: rgb( 153, 0, 153 );
+  }
+
+  /*
+   * Footer styles
+   */
+   
+   footer {
+       clear: left;
+       padding-top: 10px;
+       font-size: 0.70em;
+       font-style: normal;
+       text-align: center;
+       color: rgb( 0, 0, 0 );
+       background-color: rgb(51, 204, 255);
+       margin: 20px 0px;
+   }
