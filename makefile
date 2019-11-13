@@ -1,6 +1,6 @@
 SRC = src
 CC = g++
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall -fpermissive
 LIBS = -lwiringPi -lsqlite3
 
 _DEPS = common.h daemon.h ini.h \
