@@ -32,6 +32,7 @@ make sure the following is installed (on a Raspberry Pi or compatible SBC) prior
 
 - wiringPi
 - sqlite3
+- apache2
 
 then, just run the following:
 
