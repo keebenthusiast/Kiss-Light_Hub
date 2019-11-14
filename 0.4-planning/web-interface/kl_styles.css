@@ -75,6 +75,12 @@
    */
    
    footer {
+	   /*Delete this if you dont like the footer hugging the bottom of the screen.*/
+	   position: absolute;
+	   bottom: 0;
+	   width: 100%;
+	   height: 2.5rem;
+	   /*Up to here*/
        clear: left;
        padding-top: 10px;
        font-size: 0.70em;
