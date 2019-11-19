@@ -13,6 +13,30 @@
         -->
         <meta charset="UTF-8" />
         <title>Kiss-Light 0.4-preprealpha</title>
+		<style>
+	.footer {
+	position: fixed;
+	left: 0;
+	bottom: 0;
+	width: 100%;
+    clear: left;
+    padding-top: 10px;
+    font-size: 0.70em;
+    font-style: normal;
+    font-weight: bold;
+    text-align: center;
+    color: rgb(255, 255, 255);
+    background-color: rgb(51, 204, 255);
+    margin: 20px 0px;
+	}
+	.hide{
+	display:none;
+	}
+		
+	.show{
+	display:block;
+	}
+	</style>
 
         <!-- 
             TODO: modernizr may or may not be needed, 
@@ -41,28 +65,44 @@
         <!--
             TODO:
             insert content here
+			
         -->
-        
-        <h2>Device List</h2>
-
-	    <br><p> Device 1 </p>
-
-	    <p><img src="https://mmta.co.uk/wp-content/uploads/2016/08/The-rise-and-fall-of-the-tungsten-filament-lightbulb-image-2.jpg" alt="light bulb" width="50" height="50" align = "center"><img src="https://www.pngarts.com/files/3/Red-Minus-Symbol-PNG-Image.png" alt="Minus Sign" width="20" height="20" align = "center"> Remove Device </p>
-
-	    <br><p> Device 2 </p>
-
-	    <p><img src="https://mmta.co.uk/wp-content/uploads/2016/08/The-rise-and-fall-of-the-tungsten-filament-lightbulb-image-2.jpg" alt="light bulb" width="50" height="50" align = "center"><img src="https://www.pngarts.com/files/3/Red-Minus-Symbol-PNG-Image.png" alt="Minus Sign" width="20" height="20" align = "center"> Remove Device </p>
-
-	    <br><p><img src="https://publicdomainvectors.org/photos/primary-tab-new.png" alt="Plus Sign" width="40" height="40" align = "center"> Add Device </p>
-        
-        
-        <footer>
+		<h2 align="center">Edit your Devices</h2>
+		
+		<input type="button" name="answer" value="Add New Device" onclick="onButtonClick()" />
+		<input class="hide" type="text" id="textInput" value="" />
+		<input type="button" value="Browse" id="browse" class="hide"/>
+		<input type="button" value="Submit" id="submit" class="hide"/>
+		<input type="button" value="Cancel" id="clear" class="hide" onclick="onButtonClick2()"/>
+		
+		
+		<script>
+		function onButtonClick(){
+		document.getElementById('textInput').className="show";
+		document.getElementById('browse').className="show";
+		document.getElementById('submit').className="show";
+		document.getElementById('clear').className="show";
+		}
+		
+		function onButtonClick2(){
+		document.getElementById('textInput').className="hide";
+		document.getElementById('browse').className="hide";
+		document.getElementById('submit').className="hide";
+		document.getElementById('clear').className="hide";
+		}
+		
+		</script>
+ 
+		
+		
+    </body>    
+        <div class="footer">
             Kiss-light Copyright &#169; Christian Kissinger, 
             Michael Garibay, Steve Petruescu, Jiajun Zhang,
             Philip Herrera, Lang Le, and other contributors.
             <br/>
             Licensed under BSD 3-Clause license -- <a href="https://gitlab.com/keebenthusiast/kiss-light">source</a>
-        </footer>
+        </div>
 
-    </body>
+    
 </html>
