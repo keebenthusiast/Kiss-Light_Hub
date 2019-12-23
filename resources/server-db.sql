@@ -7,6 +7,29 @@
 -- Written by:
 --      Christian Kissinger
 -- ----------------------------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------------------------
+-- Everything below here is related to the server.
+--
+-- And this primarily exists for the discovery feature
+--
+------------------------------------------------------------------------------------------
+
+-- A very simple table, should only hold 1 entry, ideally anyway.
+CREATE TABLE srvr (
+    uuid_str VARCHAR NOT NULL,
+    PRIMARY KEY( uuid_str )
+);
+
+-- Example (and one time) insertion
+-- INSERT INTO srvr VALUES( "abcd1234-5432-7890-a34f-6924a3b2f3dd")
+
+-- Return UUID for server if requested
+-- SELECT uuid_str FROM srvr
+
+-- ----------------------------------------------------------------------------------------
+--  Everything below here is related to the device table
+-- ----------------------------------------------------------------------------------------
 CREATE TABLE device (
     dev_name VARCHAR NOT NULL,
     dev_on INT NOT NULL,
