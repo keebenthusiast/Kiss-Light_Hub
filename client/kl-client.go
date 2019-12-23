@@ -163,17 +163,17 @@ func getCode( conn net.Conn ) (int64, int64) {
   }
 
   /* Read, and parse the second response */
-  reply2, _ := bufio.NewReader( conn ).ReadString( '\n' )
-  replyParse2 := strings.Split( reply2, " " )
-  statusCode2, _ := strconv.ParseInt( replyParse2[1], 10, 10 )
+  reply, _ = bufio.NewReader( conn ).ReadString( '\n' )
+  replyParse = strings.Split( reply, " " )
+  statusCode, _ = strconv.ParseInt( replyParse[1], 10, 10 )
 
   /* Give indication on how well the server responded the second time */ 
-  if ( statusCode2 == 200 ) {
+  if ( statusCode == 200 ) {
 
     fmt.Printf( "Scanning successful, attempting to add device '%s'\n", os.Args[2] )
 
-    code, _ := strconv.ParseInt( replyParse2[3], 10, 24 )
-    pulseNum := strings.Split( replyParse2[5], "\n" )
+    code, _ := strconv.ParseInt( replyParse[3], 10, 24 )
+    pulseNum := strings.Split( replyParse[5], "\n" )
     pulse, _ := strconv.ParseInt( pulseNum[0], 10, 10 )
 
     return code, pulse
@@ -252,12 +252,12 @@ func AddDev( conn net.Conn ) int {
       }
 
       /* Read, and parse the response */
-      reply3, _ := bufio.NewReader( conn ).ReadString( '\n' )
-      replyParse3 := strings.Split( reply3, " " )
-      statusCode3, _ := strconv.ParseInt( replyParse3[1], 10, 10 )
+      reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+      replyParse := strings.Split( reply, " " )
+      statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
 
       /* Give indication on how well the server responded */ 
-      if ( statusCode3 == 200 ) {
+      if ( statusCode == 200 ) {
 
         fmt.Printf( "Added Device '%s' Successfully\n", os.Args[2] )
 
@@ -289,12 +289,12 @@ func AddDev( conn net.Conn ) int {
     }
 
     /* Read, and parse the response */
-    reply3, _ := bufio.NewReader( conn ).ReadString( '\n' )
-    replyParse3 := strings.Split( reply3, " " )
-    statusCode3, _ := strconv.ParseInt( replyParse3[1], 10, 10 )
+    reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+    replyParse := strings.Split( reply, " " )
+    statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
 
     /* Give indication on how well the server responded */ 
-    if ( statusCode3 == 200 ) {
+    if ( statusCode == 200 ) {
 
       fmt.Printf( "Added Device '%s' Successfully\n", os.Args[2] )
 
@@ -361,16 +361,16 @@ func SniffForCode( conn net.Conn ) int {
   }
 
   /* Read, and parse the second response */
-  reply2, _ := bufio.NewReader( conn ).ReadString( '\n' )
-  replyParse2 := strings.Split( reply2, " " )
-  statusCode2, _ := strconv.ParseInt( replyParse2[1], 10, 10 )
+  reply, _ = bufio.NewReader( conn ).ReadString( '\n' )
+  replyParse = strings.Split( reply, " " )
+  statusCode, _ = strconv.ParseInt( replyParse[1], 10, 10 )
 
   /* Give indication on how well the server responded */ 
-  if ( statusCode2 == 200 ) {
+  if ( statusCode == 200 ) {
     
     var onOrOff string
-    code, _ := strconv.ParseInt( replyParse2[3], 10, 24 )
-    pulseNum := strings.Split( replyParse2[5], "\n" )
+    code, _ := strconv.ParseInt( replyParse[3], 10, 24 )
+    pulseNum := strings.Split( replyParse[5], "\n" )
     pulse, _ := strconv.ParseInt( pulseNum[0], 10, 10 )
 
     if ( (code & 15) == 3 ) {
