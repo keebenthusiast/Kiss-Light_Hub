@@ -14,12 +14,19 @@ import (
        "strconv"
        "strings"
        "bufio"
+       "time"
        "gopkg.in/ini.v1"
 )
 
-const KLVersion = 0.1
+const ( 
+  KLVersion = 0.1
+  ADV_IP_ADDR = "239.255.255.250:1900"
+	SERVICE_NAME = "kiss-light"
+	BUFFER_SIZE = 2048
+)
 
 func Usage() {
+  fmt.Println( "To change states of existing devices\n" )
   fmt.Println( "Usage: " + os.Args[0] + " set <device name> on|off" )
   fmt.Println( "                  " + " toggle <device name>" )
   fmt.Println( "                  " + " send <code> <pulse>" )
@@ -30,6 +37,8 @@ func Usage() {
   fmt.Println( "                  " + " list" )
   fmt.Println( "\nEnter scan mode can be done using the following:\n" )
   fmt.Println( "Usage: " + os.Args[0] + " scan" )
+  fmt.Println( "\nDiscover available kiss-light servers (and use as the server):\n" )
+  fmt.Println( "Usage: " + os.Args[0] + " discover ([--use-as-server])" )
 }
 
 /* Set device on or off */
@@ -437,6 +446,61 @@ func GetList( conn net.Conn ) {
   }
 }
 
+/* For the discovery functionality */
+func discoverServer( conn *net.UDPConn ) int {
+
+	/* initialize buffer */
+	//buf := []byte( "WHOHAS " + SERVICE_NAME + "\n" )
+  buf := []byte( "WHOHAS *\n" )
+
+	/* Resolve UDP addr to send UDP data */
+	addr, err := net.ResolveUDPAddr( "udp4", ADV_IP_ADDR )
+
+	if ( err != nil ) {
+
+		fmt.Printf( "Unable to resolve UDP address\n" )
+		return 1
+
+	}
+
+	/* Send multicast packet */
+	_, err = conn.WriteToUDP( buf, addr )
+
+	if ( err != nil ) {
+
+		fmt.Printf( "Error occurred sending multicast packet" )
+		return 1
+
+	}
+
+	timeoutDur := 5 * time.Second
+
+	/* reuse buffer, listen for response(s), and output response(s) */
+	for {
+
+		conn.SetReadDeadline( time.Now().Add(timeoutDur) )
+
+		buf = make( []byte, BUFFER_SIZE )
+
+		n, in_addr, err := conn.ReadFromUDP( buf )
+
+		if ( err != nil ) {
+
+			/* timeout occurred */
+			return 2
+
+		} else {
+
+      fmt.Printf( "%s%s\n\n", buf[:n], 
+      strings.Split(in_addr.String(), ":")[0] )
+		
+		}
+	}
+
+	return 0
+
+}
+
 func main() {
 
   /* Check usage count first, print Usage() and exit if insufficient */
@@ -456,6 +520,9 @@ func main() {
   /* connect to this socket, and port */
   conn, _ := net.Dial( "tcp", cfg.Section("network").Key("ipaddr").String() + ":" + 
                         strconv.Itoa(cfg.Section("network").Key("port").RangeInt(1155, 1, 65535)) )
+
+  /* ignore socket closing errors. */
+  defer conn.Close()
 
   /* Parse first argument */
   if ( os.Args[1] == "set" ) {
@@ -485,6 +552,32 @@ func main() {
   } else if ( os.Args[1] == "list" ) {
 
     GetList( conn )
+
+
+  } else if ( os.Args[1] == "discover" ) {
+
+    connUDP, err := net.ListenUDP( "udp4", nil )
+    defer connUDP.Close()
+
+    if ( err != nil ) {
+
+      fmt.Printf( "Unable to initialize discovery process.\n" );
+      fmt.Fprintf( conn, "Q\n" )
+      os.Exit( 1 )
+
+    }
+
+    result := discoverServer( connUDP )
+
+    if ( result == 1 ) {
+
+      fmt.Printf( "Unable to discover any servers\n" )
+
+    } else if ( result == 2 ) {
+
+      fmt.Printf( "Done.\n" )
+
+    }
 
   } else {
 
