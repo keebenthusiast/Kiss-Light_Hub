@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+#include <pthread.h>
 
 // socket-related includes
 #include <netinet/in.h>
@@ -28,6 +29,7 @@
 #include "log.h"
 #include "common.h"
 #include "daemon.h"
+#include "discovery.h"
 
 /* 
  * When exiting, close server's socket,
@@ -84,7 +86,14 @@ int main( int argc, char **argv )
 
     initialize_rc_switch();
     initialize_leds();
+
     
+    /*
+     * Create discovery thread,
+     */
+    pthread_t discov;
+    pthread_create( &discov, NULL, discovery_handler, NULL );
+
     /*
      * Create socket.
      */
