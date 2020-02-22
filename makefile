@@ -1,15 +1,16 @@
 SRC = src
 CC = g++
 CFLAGS = -g -Wall -fpermissive
-LIBS = -lwiringPi -lsqlite3
+LIBS = -lwiringPi -lsqlite3 -lpthread
 
 _DEPS = common.h daemon.h ini.h \
-INIReader.h log.h RCSwitch.h server.h
+INIReader.h log.h RCSwitch.h server.h \
+discovery.h
 DEPS = $(patsubst %,$(SRC)/%,$(_DEPS))
 
 _OBJ = common.o log.o server.o \
 RCSwitch.o daemon.o ini.o \
-INIReader.o
+INIReader.o discovery.o
 OBJ = $(patsubst %,$(SRC)/%,$(_OBJ))
 
 all: kisslight
