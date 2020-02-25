@@ -35,7 +35,7 @@ make sure the following is installed (on a Raspberry Pi or compatible SBC) prior
 
 To install the prerequisites, the following command will do the trick:
 ```shell
-sudo apt install wiringpi libsqlite3-dev apache2
+sudo apt install wiringpi sqlite3 libsqlite3-dev apache2
 ```
 
 after that, run the following:
