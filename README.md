@@ -156,7 +156,7 @@ KL/<version#> 200 Number of Devices n
 (n line of device names, up to 30 currently)
 
 Example in Practice:
-LIST
+LIST KL/0.2
 KL/0.2 200 Number of Devices 1
 lamp
 ```
@@ -194,19 +194,25 @@ The usage currently looks like this:
 
 ```shell
 computer ~ $ kl-client
-Usage: kl-client set <device name> on|off
+To change states of existing devices
+
+Usage: ./kl-client set <device name> on|off
                    toggle <device name>
                    send <code> <pulse>
 
-Adding/deleting devices can be done as follows:
+Adding/deleting, and listing devices can be done as follows:
 
-Usage: kl-client add <device name> ([--manual|-m] <on or off code> <pulse>)
+Usage: ./kl-client add <device name> ([--manual|-m] <on or off code> <pulse>)
                    delete <device name>
                    list
 
-Entering scan mode can be done using the following:
+Enter scan mode can be done using the following:
 
-Usage: kl-client scan
+Usage: ./kl-client scan
+
+Discover available kiss-light servers (and use as the server):
+
+Usage: ./kl-client discover ([--use-as-server])
 ```
 
 ### Example usages of each command
