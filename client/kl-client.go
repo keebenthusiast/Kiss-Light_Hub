@@ -398,6 +398,11 @@ func SniffForCode( conn net.Conn ) int {
 
     fmt.Printf( "Scanning successful, Code=%d, Pulse=%d, %s\n", code, pulse, onOrOff )
 
+  } else if ( statusCode == 504 ) {
+
+    fmt.Printf( "Timed out...\n" );
+    return 1;
+
   } else {
 
     fmt.Printf( "Error occurred, likely unknown encoding\n" )
