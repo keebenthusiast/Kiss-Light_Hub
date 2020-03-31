@@ -12,6 +12,8 @@
 #include <ctime>
 #include <sqlite3.h>
 #include <string>
+#include <unistd.h>
+#include <signal.h>
 
 // electronics-related includes
 #include <wiringPi.h>
@@ -23,6 +25,11 @@
 #include "RCSwitch.h"
 #include "INIReader.h"
 
+/* local variable used for server's timeout */
+static int time_elapse = 0;
+
+/* only for common.cpp's usage (hopefully) */
+static void alarm_handler( int signal );
 
 /* local configuration variables */
 static char strbuf[2048];
@@ -542,7 +549,7 @@ void send_rf_signal( int code, int pulse )
 }
 
 /* sniff RF signal from a remote (for example) */
-void sniff_rf_signal( int &code, int &pulse )
+void sniff_rf_signal( int &code, int &pulse, int &timeout )
 {
     /* indicate the device is busy */
     set_status_led( LOW, LOW, HIGH );
@@ -550,14 +557,28 @@ void sniff_rf_signal( int &code, int &pulse )
     /* receive (sniff) is PIN 2 according to wiringPi */
     sw->enableReceive( get_int("electronics", "receiver_pin", 2) );
 
+    /* establish alarm handler */
+    time_elapse = 0;
+    signal( SIGALRM, &alarm_handler );
+    alarm( TIME_OUT );
+
     /*
-     * Wait until something is found,
+     * Wait until something is found for TIME_OUT amount of time,
      * once found, exit as it's done.
+     * 
+     * otherwise, still exit.
      */
-    while ( 1 )
+    while ( !time_elapse )
     {
         if ( sw->available() )
         {
+            /* 
+             * Set alarm to zero,
+             * Otherwise our server will
+             * go kerput pretty much.
+             */
+            alarm( 0 );
+
             code = sw->getReceivedValue();
             pulse = sw->getReceivedDelay();
             break;
@@ -565,6 +586,18 @@ void sniff_rf_signal( int &code, int &pulse )
 
         sw->resetAvailable();
     }
+
+    /* 
+     * So we can differentiate from
+     * an invalid code and timed out event.
+     */
+    if ( time_elapse )
+    {
+        timeout++;
+    }
+
+    /* reset time_elapse just in case */
+    time_elapse = 0;
 
     /* disable receive pin after data reception */
     sw->disableReceive();
@@ -613,6 +646,15 @@ void set_status_led( int led0, int led1, int led2 )
         digitalWrite( LED2, HIGH );
     else
         digitalWrite( LED2, LOW );
+}
+
+/*
+ * Very simple handler which increments
+ * the time_elapse variable.
+ */
+void alarm_handler( int signal )
+{
+    time_elapse = 1;
 }
 
 /***************************************************************************************

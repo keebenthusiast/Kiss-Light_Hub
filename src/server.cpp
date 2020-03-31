@@ -192,12 +192,16 @@ static void connection_handler( struct pollfd *connfds, int num )
             /* Handle sniff request */
             if ( status == 1 )
             {
-                int code, pulse;
-                sniff_rf_signal( code, pulse );
+                int code = 0, pulse = 0, timeout = 0;
+                sniff_rf_signal( code, pulse, timeout );
 
-                if ( code <= 0 )
+                if ( (code <= 0 || pulse <= 0) && timeout <= 0 )
                 {
                     n = sprintf( buf[i-1], "KL/%.1f 406 Unknown Encoding\n", KL_VERSION );
+                }
+                else if ( timeout > 0 )
+                {
+                    n = sprintf( buf[i-1], "KL/%.1f 504 timed out\n", KL_VERSION );
                 }
                 else
                 {
