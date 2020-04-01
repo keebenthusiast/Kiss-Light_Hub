@@ -11,6 +11,8 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
@@ -37,10 +39,22 @@
  */
 static unsigned int closeSocket = 0;
 
+/*
+ * For purposes of sniffing.
+ */
+struct sniffer
+{
+    int code;
+    int pulse;
+    int timeout;
+};
+
 // more server-specific templates
 static int create_socket();
 static void connection_handler(struct pollfd *connfds, int num);
 static void network_loop(int listenfd);
+static void *smalloc( size_t size );
+static int sfree( void *smlc, size_t size );
 
 int main( int argc, char **argv )
 {
@@ -192,22 +206,76 @@ static void connection_handler( struct pollfd *connfds, int num )
             /* Handle sniff request */
             if ( status == 1 )
             {
-                int code = 0, pulse = 0, timeout = 0;
-                sniff_rf_signal( code, pulse, timeout );
+                /* create shared memory pool first */
+                struct sniffer *shdmem = (struct sniffer *)smalloc( sizeof( struct sniffer ) );
+                shdmem->code = 0;
+                shdmem->pulse = 0;
+                shdmem->timeout = 0;
 
-                if ( (code <= 0 || pulse <= 0) && timeout <= 0 )
+                /* fork process to accomplish this task */
+                pid_t scn;
+                scn = fork();
+
+                /* Child process, execute! */
+                if ( scn == 0 )
                 {
-                    n = sprintf( buf[i-1], "KL/%.1f 406 Unknown Encoding\n", KL_VERSION );
+                    /* retreive codes, if not timed out */
+                    int code = 0, pulse = 0, timeout = 0;
+                    sniff_rf_signal( code, pulse, timeout );
+                    
+                    /* copy values from child to shared memory */
+                    shdmem->code = code;
+                    shdmem->pulse = pulse;
+                    shdmem->timeout = timeout;
+
+                    /* Child is finished yay */
+                    exit( 0 );
                 }
-                else if ( timeout > 0 )
+                /* Error occured while forking, tell client! */
+                else if ( scn < 0 )
                 {
-                    n = sprintf( buf[i-1], "KL/%.1f 504 timed out\n", KL_VERSION );
+                    /* Free the shared memory */
+                    if ( sfree(shdmem, sizeof(struct sniffer)) < 0 )
+                    {
+                        perror( "deleting memory\n" );
+                        write_to_log( (char *)"Error deleting memory after failed sniffing request" );
+                        exit( 1 );
+                    }
+
+                    /* Tell client about this */
+                    n = sprintf( buf[i-1], "KL/%.1f 500 unable to grant request\n", KL_VERSION );
                 }
+                /* Parent process, wait on child! */
                 else
                 {
-                    n = sprintf( buf[i-1], "KL/%.1f 200 Code: %i Pulse: %i\n",
-                                 KL_VERSION, code, pulse );
+                    /* Wait for child to complete */
+                    wait( NULL );
+
+                    /* Analyze code and pulse, and verify timeout didn't occur. */    
+                    if( (shdmem->code <= 0 || shdmem->pulse <= 0) && shdmem->timeout <= 0 )
+                    {
+                        n = sprintf( buf[i-1], "KL/%.1f 406 Unknown Encoding\n", KL_VERSION );
+                    }
+                    else if ( shdmem->timeout > 0 )
+                    {
+                        n = sprintf( buf[i-1], "KL/%.1f 504 timed out\n", KL_VERSION );
+                    }
+                    else
+                    {
+                        n = sprintf( buf[i-1], "KL/%.1f 200 Code: %i Pulse: %i\n",
+                                    KL_VERSION, shdmem->code, shdmem->pulse );
+                    }
+                    
+                    /* Free the shared memory */
+                    if ( sfree(shdmem, sizeof(struct sniffer)) < 0 )
+                    {
+                        perror( "deleting memory\n" );
+                        write_to_log( (char *)"Error deleting memory after sniffing" );
+                        exit( 1 );
+                    }
                 }
+
+                printf( "All is completed!, resuming...\n" );
 
                 write( connfds[i].fd, buf[i-1], n );
             }
@@ -332,4 +400,24 @@ static void network_loop( int listenfd )
 void close_socket()
 {
     closeSocket = 1;
+}
+
+/*
+ * Allows the server to create shared memory,
+ * for usage when scanning/sniffing.
+ */
+void *smalloc( size_t size )
+{
+    /* Buffer will be readable and writable, shared but anonymous. */
+    return mmap( NULL, size, (PROT_READ | PROT_WRITE), (MAP_SHARED | MAP_ANONYMOUS), -1, 0 );
+}
+
+/*
+ * Shared memory can be freed for later use!
+ * 
+ * should return 0 for success, -1 for error.
+ */
+int sfree( void *smlc, size_t size )
+{
+    return munmap( smlc, size );
 }

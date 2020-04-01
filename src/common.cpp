@@ -572,13 +572,6 @@ void sniff_rf_signal( int &code, int &pulse, int &timeout )
     {
         if ( sw->available() )
         {
-            /* 
-             * Set alarm to zero,
-             * Otherwise our server will
-             * go kerput pretty much.
-             */
-            alarm( 0 );
-
             code = sw->getReceivedValue();
             pulse = sw->getReceivedDelay();
             break;
