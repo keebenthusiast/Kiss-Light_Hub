@@ -180,8 +180,12 @@ int parse_server_input( char *buf, int *n )
         {
             if ( strcmp(str[2], "ON") == 0 )
             {
-                /* Toggle the toggle value in database. */
-                error = update_toggle( str[1], 1 );
+                /* 
+                 * Toggle the toggle value in database. 
+                 * So if toggle is called for this device,
+                 * it will turn off!
+                 */
+                error = update_toggle( str[1], 0 );
 
                 if ( error )
                 {
@@ -194,8 +198,12 @@ int parse_server_input( char *buf, int *n )
             }
             else if ( strcmp(str[2], "OFF") == 0 )
             {
-                /* Toggle the toggle value in database. */
-                error = update_toggle( str[1], 0 );
+                /* 
+                 * Toggle the toggle value in database. 
+                 * So if toggle is called for this device,
+                 * it will turn on!
+                 */
+                error = update_toggle( str[1], 1 );
 
                 if ( error )
                 {

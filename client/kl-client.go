@@ -189,7 +189,7 @@ func getCode( conn net.Conn ) (int64, int64) {
   
   } else {
 
-    fmt.Printf( "Error occurred, likely unknown encoding\n" )
+    fmt.Printf( "Error occurred, likely unknown encoding or timed out\n" )
     return -1, -1
 
   }
