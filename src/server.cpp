@@ -237,7 +237,6 @@ static void connection_handler( struct pollfd *connfds, int num )
                     /* Free the shared memory */
                     if ( sfree(shdmem, sizeof(struct sniffer)) < 0 )
                     {
-                        perror( "deleting memory\n" );
                         write_to_log( (char *)"Error deleting memory after failed sniffing request" );
                         exit( 1 );
                     }
@@ -269,13 +268,10 @@ static void connection_handler( struct pollfd *connfds, int num )
                     /* Free the shared memory */
                     if ( sfree(shdmem, sizeof(struct sniffer)) < 0 )
                     {
-                        perror( "deleting memory\n" );
                         write_to_log( (char *)"Error deleting memory after sniffing" );
                         exit( 1 );
                     }
                 }
-
-                printf( "All is completed!, resuming...\n" );
 
                 write( connfds[i].fd, buf[i-1], n );
             }
