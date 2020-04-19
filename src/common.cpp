@@ -12,6 +12,8 @@
 #include <ctime>
 #include <sqlite3.h>
 #include <string>
+#include <unistd.h>
+#include <signal.h>
 
 // electronics-related includes
 #include <wiringPi.h>
@@ -23,6 +25,11 @@
 #include "RCSwitch.h"
 #include "INIReader.h"
 
+/* local variable used for server's timeout */
+static int time_elapse = 0;
+
+/* only for common.cpp's usage (hopefully) */
+static void alarm_handler( int signal );
 
 /* local configuration variables */
 static char strbuf[2048];
@@ -66,8 +73,8 @@ void get_current_time( char *buf )
     strftime( buf, sizeof(buf)+24, "%Y-%m-%d.%X", &tstruct );
 }
 
-/* 
- * Check protocol version 
+/*
+ * Check protocol version
  * return protocol_version if valid
  * or -1.0 if invalid.
  */
@@ -78,7 +85,7 @@ float get_protocol_version( char *buf )
 
     if ( protocol <= 0.0 || strcmp(buf, "") == 0 )
         return -1.0;
-    
+
     return protocol;
 }
 
@@ -100,7 +107,7 @@ int parse_server_input( char *buf, int *n )
     sscanf( buf, "%s", str[0] );
 
     // TRANSMIT 5592371 189 KL/version#
-    if ( strcmp(str[0], "TRANSMIT") == 0 )
+    if ( strcasecmp(str[0], "TRANSMIT") == 0 )
     {
         int c, p;
         sscanf( buf, "%s %i %i %s", str[0], &c, &p, str[1] );
@@ -130,7 +137,7 @@ int parse_server_input( char *buf, int *n )
         *n = sprintf( buf, "KL/%.1f 200 Custom Code Sent\n", KL_VERSION );
     }
     // SET outlet0 [ON|OFF] KL/version#
-    else if ( strcmp(str[0], "SET") == 0 )
+    else if ( strcasecmp(str[0], "SET") == 0 )
     {
         sscanf( buf, "%s %s %s %s", str[0], str[1], str[2], str[3] );
 
@@ -173,8 +180,12 @@ int parse_server_input( char *buf, int *n )
         {
             if ( strcmp(str[2], "ON") == 0 )
             {
-                /* Toggle the toggle value in database. */
-                error = update_toggle( str[1], (db_ptr->toggle) ? 1 : 0 );
+                /* 
+                 * Toggle the toggle value in database. 
+                 * So if toggle is called for this device,
+                 * it will turn off!
+                 */
+                error = update_toggle( str[1], 0 );
 
                 if ( error )
                 {
@@ -187,8 +198,12 @@ int parse_server_input( char *buf, int *n )
             }
             else if ( strcmp(str[2], "OFF") == 0 )
             {
-                /* Toggle the toggle value in database. */
-                error = update_toggle( str[1], (! db_ptr->toggle) ? 1 : 0 );
+                /* 
+                 * Toggle the toggle value in database. 
+                 * So if toggle is called for this device,
+                 * it will turn on!
+                 */
+                error = update_toggle( str[1], 1 );
 
                 if ( error )
                 {
@@ -214,7 +229,7 @@ int parse_server_input( char *buf, int *n )
         }
     }
     // TOGGLE outlet0 KL/version#
-    else if ( strcmp(str[0], "TOGGLE") == 0 )
+    else if ( strcasecmp(str[0], "TOGGLE") == 0 )
     {
         sscanf( buf, "%s %s %s", str[0], str[1], str[2] );
 
@@ -263,7 +278,7 @@ int parse_server_input( char *buf, int *n )
             {
                 send_rf_signal( db_ptr->off, db_ptr->pulse );
             }
-            sprintf( lgbuf,"entered Code: %i Pulse: %i", 
+            sprintf( lgbuf,"entered Code: %i Pulse: %i",
                      (db_ptr->toggle) ? db_ptr->on : db_ptr->off, db_ptr->pulse );
             write_to_log( lgbuf );
 
@@ -279,7 +294,7 @@ int parse_server_input( char *buf, int *n )
             }
             else
             {
-                /* 
+                /*
                  * All is well, do nothing ,
                  * or it could be an error
                  * related to being unable
@@ -298,7 +313,7 @@ int parse_server_input( char *buf, int *n )
         }
     }
     // LIST KL/version#
-    else if ( strcmp(str[0], "LIST") == 0 )
+    else if ( strcasecmp(str[0], "LIST") == 0 )
     {
         sscanf( buf, "%s %s", str[0], str[1] );
 
@@ -349,10 +364,10 @@ int parse_server_input( char *buf, int *n )
         }
     }
     // ADD 'name' on_code off_code pulse KL/Version# (0.1)
-    // ADD outlet0 5592371 5592380 189 KL/version# 
+    // ADD outlet0 5592371 5592380 189 KL/version#
     // ADD 'name' <on or off code> pulse KL/Version# (0.2 and later)
     // ADD outlet0 5592380 189 KL/version#
-    else if ( strcmp(str[0], "ADD") == 0 )
+    else if ( strcasecmp(str[0], "ADD") == 0 )
     {
         int on = -1, off = -1, pulse = -1, error;
 
@@ -360,17 +375,17 @@ int parse_server_input( char *buf, int *n )
         sscanf( buf, "%s %s %i %i %i %s",
                 str[0], str[1], &on, &off, &pulse, str[2] );
 
-        /* 
-         * Check if str[2] is null, if it is, assume the 
+        /*
+         * Check if str[2] is null, if it is, assume the
          * protocol is version 0.2 and later.
-         * 
+         *
          * Otherwise, check to make sure the version is 0.1,
          * anything greater than is incorrect.
          */
         if ( get_protocol_version(str[2]) <= 0.0 || pulse <= 0 )
         {
             int temp;
-            sscanf( buf, "%s %s %i %i %s", 
+            sscanf( buf, "%s %s %i %i %s",
                     str[0], str[1], &temp, &pulse, str[2] );
 
             /* If protocol version is invalid, tell the client */
@@ -434,7 +449,7 @@ int parse_server_input( char *buf, int *n )
         }
     }
     // DELETE 'name' KL/Version#
-    else if ( strcmp(str[0], "DELETE") == 0 )
+    else if ( strcasecmp(str[0], "DELETE") == 0 )
     {
         sscanf( buf, "%s %s %s", str[0], str[1], str[2] );
 
@@ -471,7 +486,7 @@ int parse_server_input( char *buf, int *n )
         }
     }
     // SNIFF KL/version#
-    else if ( strcmp(str[0], "SNIFF") == 0 )
+    else if ( strcasecmp(str[0], "SNIFF") == 0 )
     {
         sscanf( buf, "%s %s", str[0], str[1] );
 
@@ -495,7 +510,7 @@ int parse_server_input( char *buf, int *n )
         *n = sprintf( buf, "KL/%.1f 200 Sniffing\n", KL_VERSION );
         rv = 1;
     }
-    else if ( strcmp(str[0], "Q") == 0 || strcmp(str[0], "QUIT") == 0 )
+    else if ( strcasecmp(str[0], "Q") == 0 || strcmp(str[0], "QUIT") == 0 )
     {
         /* If user wants to exit, we'll let them know that their request is granted. */
         *n = sprintf( buf, "KL/%.1f 200 Goodbye\n", KL_VERSION );
@@ -516,7 +531,7 @@ int parse_server_input( char *buf, int *n )
 }
 
 /***************************************************************************************
- * Everything related to electrical will reside here. 
+ * Everything related to electrical will reside here.
  **************************************************************************************/
 
 /* initialize sw variable, for RF transmission/receival */
@@ -542,7 +557,7 @@ void send_rf_signal( int code, int pulse )
 }
 
 /* sniff RF signal from a remote (for example) */
-void sniff_rf_signal( int &code, int &pulse )
+void sniff_rf_signal( int &code, int &pulse, int &timeout )
 {
     /* indicate the device is busy */
     set_status_led( LOW, LOW, HIGH );
@@ -550,11 +565,18 @@ void sniff_rf_signal( int &code, int &pulse )
     /* receive (sniff) is PIN 2 according to wiringPi */
     sw->enableReceive( get_int("electronics", "receiver_pin", 2) );
 
+    /* establish alarm handler */
+    time_elapse = 0;
+    signal( SIGALRM, &alarm_handler );
+    alarm( TIME_OUT );
+
     /*
-     * Wait until something is found,
+     * Wait until something is found for TIME_OUT amount of time,
      * once found, exit as it's done.
+     * 
+     * otherwise, still exit.
      */
-    while ( 1 )
+    while ( !time_elapse )
     {
         if ( sw->available() )
         {
@@ -565,6 +587,18 @@ void sniff_rf_signal( int &code, int &pulse )
 
         sw->resetAvailable();
     }
+
+    /* 
+     * So we can differentiate from
+     * an invalid code and timed out event.
+     */
+    if ( time_elapse )
+    {
+        timeout++;
+    }
+
+    /* reset time_elapse just in case */
+    time_elapse = 0;
 
     /* disable receive pin after data reception */
     sw->disableReceive();
@@ -591,7 +625,7 @@ void initialize_leds()
 }
 
 /*
- * Accept basically any value to turn on LEDs. 
+ * Accept basically any value to turn on LEDs.
  * Though treating this as a boolean might be easier.
  */
 void set_status_led( int led0, int led1, int led2 )
@@ -607,7 +641,7 @@ void set_status_led( int led0, int led1, int led2 )
         digitalWrite( LED1, HIGH );
     else
         digitalWrite( LED1, LOW );
-        
+
     /* Set led2 */
     if ( led2 > 0 )
         digitalWrite( LED2, HIGH );
@@ -615,8 +649,17 @@ void set_status_led( int led0, int led1, int led2 )
         digitalWrite( LED2, LOW );
 }
 
+/*
+ * Very simple handler which increments
+ * the time_elapse variable.
+ */
+void alarm_handler( int signal )
+{
+    time_elapse = 1;
+}
+
 /***************************************************************************************
- * Everything related to configuration will reside here. 
+ * Everything related to configuration will reside here.
  **************************************************************************************/
 
 /* Initialize configuration variable, to ini file */
@@ -645,7 +688,7 @@ const char *get_string( const char *section, const char *name, const char *def_v
 }
 
 /***************************************************************************************
- * Everything related to database manipulation will reside here. 
+ * Everything related to database manipulation will reside here.
  **************************************************************************************/
 
 /* callback function for database access */
@@ -693,7 +736,7 @@ static int callback( void *data, int argc, char **argv, char **azColName )
 }
 
 /*
- * Update toggle value when client requests toggle. 
+ * Update toggle value when client requests toggle.
  * Returns 1 when an error occurs,
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
@@ -741,7 +784,7 @@ static int update_toggle( const char *name, const int tog )
     return rv;
 }
 
-/* 
+/*
  * Insert new entry into database.
  * Returns 1 when an SQL error occurs,
  * Returns -1 when unable to open db file,
@@ -796,7 +839,7 @@ static int add_device( const char *name, int on_code, int off_code, int pulse )
     /* Create the sql statement */
     sprintf( sql, "INSERT INTO device VALUES( '%s', %u, %u, %u, 0 );",
              name, on_code, off_code, pulse );
-    
+
     /* Execute sql statement */
     status = sqlite3_exec( db, sql, callback, 0, &errmsg );
 
@@ -819,7 +862,7 @@ static int add_device( const char *name, int on_code, int off_code, int pulse )
     return rv;
 }
 
-/* 
+/*
  * Delete entry from database.
  * Returns 1 when an error occurs,
  * Returns -1 when unable to open db file,
@@ -845,7 +888,7 @@ static int delete_device( const char *name )
 
     /* Create the sql statement */
     sprintf( sql, "DELETE FROM device WHERE dev_name='%s';", name );
-    
+
     /* Execute sql statement */
     status = sqlite3_exec( db, sql, callback, 0, &errmsg );
 
@@ -868,7 +911,7 @@ static int delete_device( const char *name )
     return rv;
 }
 
-/* 
+/*
  * Retreive device information given the device name.
  * Returns 1 when an error occurs,
  * Returns -1 when unable to open db file
@@ -917,7 +960,7 @@ static int select_device( const char *name )
     return rv;
 }
 
-/* 
+/*
  * Retreive list of devices stored.
  * Returns 1 when an error occurs,
  * Returns -1 when unable to open db file

@@ -1,15 +1,16 @@
 SRC = src
 CC = g++
-CFLAGS = -g -Wall
-LIBS = -lwiringPi -lsqlite3
+CFLAGS = -g -Wall -fpermissive
+LIBS = -lwiringPi -lsqlite3 -lpthread
 
 _DEPS = common.h daemon.h ini.h \
-INIReader.h log.h RCSwitch.h server.h
+INIReader.h log.h RCSwitch.h server.h \
+discovery.h
 DEPS = $(patsubst %,$(SRC)/%,$(_DEPS))
 
 _OBJ = common.o log.o server.o \
 RCSwitch.o daemon.o ini.o \
-INIReader.o
+INIReader.o discovery.o
 OBJ = $(patsubst %,$(SRC)/%,$(_OBJ))
 
 all: kisslight
@@ -22,6 +23,7 @@ kisslight: $(OBJ)
 
 install: kisslight
 	cp resources/kisslight.ini /etc/
+	mkdir /etc/kisslight
 	cp resources/kisslight.service /etc/systemd/system/
 	cp kisslight /usr/bin/
 	mkdir /var/lib/kisslight
@@ -50,4 +52,4 @@ client-uninstall:
 	sudo rm /usr/bin/kl-client
 
 clean:
-	rm -f $(SRC)*.o kl-client kisslight
+	rm -f $(SRC)/*.o kl-client kisslight

@@ -14,12 +14,19 @@ import (
        "strconv"
        "strings"
        "bufio"
+       "time"
        "gopkg.in/ini.v1"
 )
 
-const KLVersion = 0.1
+const ( 
+  KLVersion = 0.1
+  ADV_IP_ADDR = "239.255.255.250:1900"
+	SERVICE_NAME = "kiss-light"
+	BUFFER_SIZE = 2048
+)
 
 func Usage() {
+  fmt.Println( "To change states of existing devices\n" )
   fmt.Println( "Usage: " + os.Args[0] + " set <device name> on|off" )
   fmt.Println( "                  " + " toggle <device name>" )
   fmt.Println( "                  " + " send <code> <pulse>" )
@@ -30,6 +37,8 @@ func Usage() {
   fmt.Println( "                  " + " list" )
   fmt.Println( "\nEnter scan mode can be done using the following:\n" )
   fmt.Println( "Usage: " + os.Args[0] + " scan" )
+  fmt.Println( "\nDiscover available kiss-light servers (and use as the server):\n" )
+  fmt.Println( "Usage: " + os.Args[0] + " discover ([--use-as-server])" )
 }
 
 /* Set device on or off */
@@ -163,24 +172,24 @@ func getCode( conn net.Conn ) (int64, int64) {
   }
 
   /* Read, and parse the second response */
-  reply2, _ := bufio.NewReader( conn ).ReadString( '\n' )
-  replyParse2 := strings.Split( reply2, " " )
-  statusCode2, _ := strconv.ParseInt( replyParse2[1], 10, 10 )
+  reply, _ = bufio.NewReader( conn ).ReadString( '\n' )
+  replyParse = strings.Split( reply, " " )
+  statusCode, _ = strconv.ParseInt( replyParse[1], 10, 10 )
 
   /* Give indication on how well the server responded the second time */ 
-  if ( statusCode2 == 200 ) {
+  if ( statusCode == 200 ) {
 
     fmt.Printf( "Scanning successful, attempting to add device '%s'\n", os.Args[2] )
 
-    code, _ := strconv.ParseInt( replyParse2[3], 10, 24 )
-    pulseNum := strings.Split( replyParse2[5], "\n" )
+    code, _ := strconv.ParseInt( replyParse[3], 10, 24 )
+    pulseNum := strings.Split( replyParse[5], "\n" )
     pulse, _ := strconv.ParseInt( pulseNum[0], 10, 10 )
 
     return code, pulse
   
   } else {
 
-    fmt.Printf( "Error occurred, likely unknown encoding\n" )
+    fmt.Printf( "Error occurred, likely unknown encoding or timed out\n" )
     return -1, -1
 
   }
@@ -252,12 +261,12 @@ func AddDev( conn net.Conn ) int {
       }
 
       /* Read, and parse the response */
-      reply3, _ := bufio.NewReader( conn ).ReadString( '\n' )
-      replyParse3 := strings.Split( reply3, " " )
-      statusCode3, _ := strconv.ParseInt( replyParse3[1], 10, 10 )
+      reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+      replyParse := strings.Split( reply, " " )
+      statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
 
       /* Give indication on how well the server responded */ 
-      if ( statusCode3 == 200 ) {
+      if ( statusCode == 200 ) {
 
         fmt.Printf( "Added Device '%s' Successfully\n", os.Args[2] )
 
@@ -269,7 +278,7 @@ func AddDev( conn net.Conn ) int {
 
     } 
 
-  } else {
+  } else if ( len(os.Args) == 3 ) {
 
     code, pulse := getCode( conn )
 
@@ -289,12 +298,12 @@ func AddDev( conn net.Conn ) int {
     }
 
     /* Read, and parse the response */
-    reply3, _ := bufio.NewReader( conn ).ReadString( '\n' )
-    replyParse3 := strings.Split( reply3, " " )
-    statusCode3, _ := strconv.ParseInt( replyParse3[1], 10, 10 )
+    reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+    replyParse := strings.Split( reply, " " )
+    statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
 
     /* Give indication on how well the server responded */ 
-    if ( statusCode3 == 200 ) {
+    if ( statusCode == 200 ) {
 
       fmt.Printf( "Added Device '%s' Successfully\n", os.Args[2] )
 
@@ -303,6 +312,10 @@ func AddDev( conn net.Conn ) int {
       fmt.Printf( "Unable to Add Device '%s'\n", os.Args[2] )
 
     }
+
+  } else {
+
+    fmt.Printf( "Unable to Add Device, no device name specified.\n" )
 
   }
 
@@ -357,16 +370,16 @@ func SniffForCode( conn net.Conn ) int {
   }
 
   /* Read, and parse the second response */
-  reply2, _ := bufio.NewReader( conn ).ReadString( '\n' )
-  replyParse2 := strings.Split( reply2, " " )
-  statusCode2, _ := strconv.ParseInt( replyParse2[1], 10, 10 )
+  reply, _ = bufio.NewReader( conn ).ReadString( '\n' )
+  replyParse = strings.Split( reply, " " )
+  statusCode, _ = strconv.ParseInt( replyParse[1], 10, 10 )
 
   /* Give indication on how well the server responded */ 
-  if ( statusCode2 == 200 ) {
+  if ( statusCode == 200 ) {
     
     var onOrOff string
-    code, _ := strconv.ParseInt( replyParse2[3], 10, 24 )
-    pulseNum := strings.Split( replyParse2[5], "\n" )
+    code, _ := strconv.ParseInt( replyParse[3], 10, 24 )
+    pulseNum := strings.Split( replyParse[5], "\n" )
     pulse, _ := strconv.ParseInt( pulseNum[0], 10, 10 )
 
     if ( (code & 15) == 3 ) {
@@ -384,6 +397,11 @@ func SniffForCode( conn net.Conn ) int {
     }
 
     fmt.Printf( "Scanning successful, Code=%d, Pulse=%d, %s\n", code, pulse, onOrOff )
+
+  } else if ( statusCode == 504 ) {
+
+    fmt.Printf( "Timed out...\n" );
+    return 1;
 
   } else {
 
@@ -433,6 +451,61 @@ func GetList( conn net.Conn ) {
   }
 }
 
+/* For the discovery functionality */
+func discoverServer( conn *net.UDPConn ) int {
+
+	/* initialize buffer */
+	//buf := []byte( "WHOHAS " + SERVICE_NAME + "\n" )
+  buf := []byte( "WHOHAS *\n" )
+
+	/* Resolve UDP addr to send UDP data */
+	addr, err := net.ResolveUDPAddr( "udp4", ADV_IP_ADDR )
+
+	if ( err != nil ) {
+
+		fmt.Printf( "Unable to resolve UDP address\n" )
+		return 1
+
+	}
+
+	/* Send multicast packet */
+	_, err = conn.WriteToUDP( buf, addr )
+
+	if ( err != nil ) {
+
+		fmt.Printf( "Error occurred sending multicast packet" )
+		return 1
+
+	}
+
+	timeoutDur := 5 * time.Second
+
+	/* reuse buffer, listen for response(s), and output response(s) */
+	for {
+
+		conn.SetReadDeadline( time.Now().Add(timeoutDur) )
+
+		buf = make( []byte, BUFFER_SIZE )
+
+		n, in_addr, err := conn.ReadFromUDP( buf )
+
+		if ( err != nil ) {
+
+			/* timeout occurred */
+			return 2
+
+		} else {
+
+      fmt.Printf( "%s%s\n\n", buf[:n], 
+      strings.Split(in_addr.String(), ":")[0] )
+		
+		}
+	}
+
+	return 0
+
+}
+
 func main() {
 
   /* Check usage count first, print Usage() and exit if insufficient */
@@ -452,6 +525,9 @@ func main() {
   /* connect to this socket, and port */
   conn, _ := net.Dial( "tcp", cfg.Section("network").Key("ipaddr").String() + ":" + 
                         strconv.Itoa(cfg.Section("network").Key("port").RangeInt(1155, 1, 65535)) )
+
+  /* ignore socket closing errors. */
+  defer conn.Close()
 
   /* Parse first argument */
   if ( os.Args[1] == "set" ) {
@@ -481,6 +557,32 @@ func main() {
   } else if ( os.Args[1] == "list" ) {
 
     GetList( conn )
+
+
+  } else if ( os.Args[1] == "discover" ) {
+
+    connUDP, err := net.ListenUDP( "udp4", nil )
+    defer connUDP.Close()
+
+    if ( err != nil ) {
+
+      fmt.Printf( "Unable to initialize discovery process.\n" );
+      fmt.Fprintf( conn, "Q\n" )
+      os.Exit( 1 )
+
+    }
+
+    result := discoverServer( connUDP )
+
+    if ( result == 1 ) {
+
+      fmt.Printf( "Unable to discover any servers\n" )
+
+    } else if ( result == 2 ) {
+
+      fmt.Printf( "Done.\n" )
+
+    }
 
   } else {
 

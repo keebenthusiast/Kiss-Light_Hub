@@ -5,6 +5,7 @@
 #define DBLOCATION ((const char *)"/var/lib/kisslight/kisslight.db")
 #define MAX_DEVICES 30
 #define KL_VERSION 0.2
+#define TIME_OUT 7
 
 /* misc, mostly for logging */
 void get_current_time( char *buf );
@@ -18,7 +19,7 @@ int parse_server_input( char *buf, int *n );
 /* electrical related */
 void initialize_rc_switch();
 void send_rf_signal( int code, int pulse );
-void sniff_rf_signal( int &code, int &pulse );
+void sniff_rf_signal( int &code, int &pulse, int &timeout );
 void initialize_leds();
 void set_status_led( int led0, int led1, int led2 );
 

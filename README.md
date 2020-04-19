@@ -29,11 +29,16 @@ Wiring scheme:
 ## Installation (server)
 
 make sure the following is installed (on a Raspberry Pi or compatible SBC) prior:
-
 - wiringPi
 - sqlite3
+- apache2
 
-then, just run the following:
+To install the prerequisites, the following command will do the trick:
+```shell
+sudo apt install wiringpi sqlite3 libsqlite3-dev apache2
+```
+
+after that, run the following:
 
 ```shell
 make
@@ -151,7 +156,7 @@ KL/<version#> 200 Number of Devices n
 (n line of device names, up to 30 currently)
 
 Example in Practice:
-LIST
+LIST KL/0.2
 KL/0.2 200 Number of Devices 1
 lamp
 ```
@@ -189,19 +194,25 @@ The usage currently looks like this:
 
 ```shell
 computer ~ $ kl-client
-Usage: kl-client set <device name> on|off
+To change states of existing devices
+
+Usage: ./kl-client set <device name> on|off
                    toggle <device name>
                    send <code> <pulse>
 
-Adding/deleting devices can be done as follows:
+Adding/deleting, and listing devices can be done as follows:
 
-Usage: kl-client add <device name> ([--manual|-m] <on or off code> <pulse>)
+Usage: ./kl-client add <device name> ([--manual|-m] <on or off code> <pulse>)
                    delete <device name>
                    list
 
-Entering scan mode can be done using the following:
+Enter scan mode can be done using the following:
 
-Usage: kl-client scan
+Usage: ./kl-client scan
+
+Discover available kiss-light servers (and use as the server):
+
+Usage: ./kl-client discover ([--use-as-server])
 ```
 
 ### Example usages of each command
