@@ -1,7 +1,7 @@
 SRC = src
 CC = g++
 CFLAGS = -g -Wall -fpermissive
-LIBS = -lsqlite3 -lpthread -lpigpio
+LIBS = -lsqlite3 -pthread -lpigpio -lrt
 
 _DEPS = common.h daemon.h ini.h \
 INIReader.h log.h RCSwitch.h server.h \

@@ -81,10 +81,39 @@ void get_current_time( char *buf )
 float get_protocol_version( char *buf )
 {
     float protocol;
-    sscanf( buf, "KL/%f", &protocol );
 
-    if ( protocol <= 0.0 || strcmp(buf, "") == 0 )
+    /* 
+     * check to make sure buf isn't empty and first part equals KL or
+     * something along those lines
+     */
+    if ( strcmp(buf, "") == 0 || strncasecmp( buf, "KL", 2) != 0 )
+    {
         return -1.0;
+    }
+
+    /* Now extract the protocol version itself */
+    if ( strncmp( buf, "kl", 2) == 0 )
+    {
+        sscanf( buf, "kl/%f", &protocol );
+    }
+    else if ( strncmp( buf, "Kl", 2) == 0 )
+    {
+        sscanf( buf, "Kl/%f", &protocol );
+    }
+    else if ( strncmp( buf, "kL", 2 ) == 0 )
+    {
+        sscanf( buf, "kL/%f", &protocol );
+    }
+    else
+    {
+        sscanf( buf, "KL/%f", &protocol );
+    }
+
+    /* make sure the protocol version is correct */
+    if ( protocol <= 0.0 )
+    {
+        return -1.0;
+    }
 
     return protocol;
 }
