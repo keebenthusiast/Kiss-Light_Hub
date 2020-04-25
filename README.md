@@ -29,13 +29,18 @@ Wiring scheme:
 ## Installation (server)
 
 make sure the following is installed (on a Raspberry Pi or compatible SBC) prior:
-- wiringPi
+- wiringPi*
+- pigpio
 - sqlite3
 - apache2
 
+*only for v0.4 and earlier
+
+---
+
 To install the prerequisites, the following command will do the trick:
 ```shell
-sudo apt install wiringpi sqlite3 libsqlite3-dev apache2
+sudo apt install wiringpi pigpio sqlite3 libsqlite3-dev apache2
 ```
 
 after that, run the following:
