@@ -1,5 +1,7 @@
 # Kiss-Light
 
+## This repository is largely left unmaintained, but feel free to make use of it anyways
+
 Yet another RF outlet controller, where it is controlled from a Raspberry Pi, and the client is a simple command line application.
 
 The idea is essentially make it as simple as possible, but still have useful functionality that could easily be used in home automation or just used standalone for DIYers.
@@ -29,13 +31,20 @@ Wiring scheme:
 ## Installation (server)
 
 make sure the following is installed (on a Raspberry Pi or compatible SBC) prior:
-- wiringPi
+
+- wiringPi*
+- pigpio
 - sqlite3
 - apache2
 
+*only for v0.4 and earlier
+
+---
+
 To install the prerequisites, the following command will do the trick:
+
 ```shell
-sudo apt install wiringpi sqlite3 libsqlite3-dev apache2
+sudo apt install wiringpi pigpio sqlite3 libsqlite3-dev apache2
 ```
 
 after that, run the following:

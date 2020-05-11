@@ -24,7 +24,7 @@
 #include <poll.h>
 
 // electronics-related includes
-#include <wiringPi.h>
+#include <pigpio.h>
 
 // local includes
 #include "server.h"
@@ -86,21 +86,21 @@ int main( int argc, char **argv )
     /* Daemon will handle the one signal */
     signal( SIGINT, handle_signal );
 
-     /*
-     * Initialize wiringPi,
+    /*
+     * Initialize pigpio,
      * RCSwitch, and Status LEDs.
      */
-    if ( wiringPiSetup() < 0 )
+    
+    if ( gpioInitialise() < 0 )
     {
-        perror( "wiringPi error" );
-        write_to_log( (char *)"error initializing WiringPi, insufficient privileges" );
+        perror( "pigpio error" );
+        write_to_log( (char *)"error initializing pigpio, insufficient privileges" );
         return -1;
     }
-    write_to_log( (char *)"WiringPi initialized successfully" );
+    write_to_log( (char *)"pigpio initialized successfully" );
 
     initialize_rc_switch();
     initialize_leds();
-
     
     /*
      * Create discovery thread,
@@ -118,7 +118,7 @@ int main( int argc, char **argv )
      */
     if ( listen( listenfd, LISTEN_QUEUE ) < 0 )
     {
-        set_status_led( HIGH, HIGH, HIGH );
+        set_status_led( PI_HIGH, PI_HIGH, PI_HIGH );
         perror( "Listening error" );
         write_to_log( (char *)"error listening" );
         return -1;
@@ -128,6 +128,10 @@ int main( int argc, char **argv )
      * Time for Polling.
      */
     network_loop( listenfd );
+
+    /* When this is reached, it is time to exit! */
+    set_status_led( PI_LOW, PI_LOW, PI_LOW );
+    gpioTerminate();
 
     return 0;
 }
@@ -145,7 +149,7 @@ static int create_socket()
 
     if ( fd < 0 )
     {
-        set_status_led( HIGH, HIGH, HIGH );
+        set_status_led( PI_HIGH, PI_HIGH, PI_HIGH );
         perror( "error creating socket" );
         write_to_log( (char *)"error creating socket" );
         exit( 1 );
@@ -167,7 +171,7 @@ static int create_socket()
     /* Bind the fd */
     if ( bind( fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr) ) < 0 )
     {
-        set_status_led( HIGH, HIGH, HIGH );
+        set_status_led( PI_HIGH, PI_HIGH, PI_HIGH );
         perror( "Error binding" );
         write_to_log( (char *)"error binding" );
         exit( 1 );
@@ -227,6 +231,9 @@ static void connection_handler( struct pollfd *connfds, int num )
                     shdmem->code = code;
                     shdmem->pulse = pulse;
                     shdmem->timeout = timeout;
+
+                    /* terminate gpio for child, no longer needed */
+                    gpioTerminate();
 
                     /* Child is finished yay */
                     exit( 0 );
@@ -332,7 +339,7 @@ static void network_loop( int listenfd )
                 }
                 else
                 {
-                    set_status_led( HIGH, HIGH, HIGH );
+                    set_status_led( PI_HIGH, PI_HIGH, PI_HIGH );
                     perror( "Error Accepting" );
                     write_to_log( (char *)"error accepting" );
                     exit( 1 );
@@ -365,7 +372,7 @@ static void network_loop( int listenfd )
              */
             if ( i >= POLL_SIZE )
             {
-                set_status_led( HIGH, LOW, HIGH );
+                set_status_led( PI_HIGH, PI_LOW, PI_HIGH );
                 fprintf( stderr, "too many clients, exiting...\n" );
                 write_to_log( (char *)"error, too many clients" );
                 exit( 1 );

@@ -97,9 +97,10 @@ void RCSwitch::setReceiveTolerance(int nPercent) {
  *
  * @param nTransmitterPin    Arduino Pin to which the sender is connected to
  */
-void RCSwitch::enableTransmit(int nTransmitterPin) {
+void RCSwitch::enableTransmit(int nTransmitterPin)
+{
   this->nTransmitterPin = nTransmitterPin;
-  pinMode(this->nTransmitterPin, OUTPUT);
+  gpioSetMode( this->nTransmitterPin, PI_OUTPUT );
 }
 
 /**
@@ -336,19 +337,26 @@ void RCSwitch::send(char* sCodeWord) {
   }
 }
 
-void RCSwitch::transmit(int nHighPulses, int nLowPulses) {
+void RCSwitch::transmit(int nHighPulses, int nLowPulses)
+{
     boolean disabled_Receive = false;
     int nReceiverInterrupt_backup = nReceiverInterrupt;
-    if (this->nTransmitterPin != -1) {
-        if (this->nReceiverInterrupt != -1) {
+
+    if (this->nTransmitterPin != -1)
+    {
+        if (this->nReceiverInterrupt != -1)
+        {
             this->disableReceive();
             disabled_Receive = true;
         }
-        digitalWrite(this->nTransmitterPin, HIGH);
-        delayMicroseconds( this->nPulseLength * nHighPulses);
-        digitalWrite(this->nTransmitterPin, LOW);
-        delayMicroseconds( this->nPulseLength * nLowPulses);
-        if(disabled_Receive){
+
+        gpioWrite (this->nTransmitterPin, PI_HIGH );
+        gpioDelay( this->nPulseLength * nHighPulses );
+        gpioWrite (this->nTransmitterPin, PI_LOW );
+        gpioDelay( this->nPulseLength * nLowPulses );
+
+        if(disabled_Receive)
+        {
             this->enableReceive(nReceiverInterrupt_backup);
         }
     }
@@ -441,11 +449,13 @@ void RCSwitch::enableReceive(int interrupt) {
   this->enableReceive();
 }
 
-void RCSwitch::enableReceive() {
-  if (this->nReceiverInterrupt != -1) {
+void RCSwitch::enableReceive()
+{
+  if (this->nReceiverInterrupt != -1)
+  {
     RCSwitch::nReceivedValue = 0; // null
     RCSwitch::nReceivedBitlength = 0; // null
-    wiringPiISR(this->nReceiverInterrupt, INT_EDGE_BOTH, &handleInterrupt);
+    gpioSetISRFunc( this->nReceiverInterrupt, EITHER_EDGE, 0, handleInterrupt );
   }
 }
 
@@ -558,34 +568,42 @@ bool RCSwitch::receiveProtocol2(unsigned int changeCount){
 
 }
 
-void RCSwitch::handleInterrupt() {
+void RCSwitch::handleInterrupt()
+{
 
   static unsigned int duration;
   static unsigned int changeCount;
   static unsigned long lastTime;
   static unsigned int repeatCount;
 
-  long time = micros();
+  long time = gpioTick();
   duration = time - lastTime;
 
-  if (duration > 5000 && duration > RCSwitch::timings[0] - 200 && duration < RCSwitch::timings[0] + 200) {    
+  if (duration > 5000 && duration > RCSwitch::timings[0] - 200 && duration < RCSwitch::timings[0] + 200)
+  {
     repeatCount++;
     changeCount--;
 
-    if (repeatCount == 2) {
-                if (receiveProtocol1(changeCount) == false){
-                        if (receiveProtocol2(changeCount) == false){
-                                //failed
-                        }
-                }
+    if (repeatCount == 2)
+    {
+      if (receiveProtocol1(changeCount) == false)
+      {
+        if (receiveProtocol2(changeCount) == false)
+        {
+          //failed
+        }
+      }
       repeatCount = 0;
     }
     changeCount = 0;
-  } else if (duration > 5000) {
+  }
+  else if (duration > 5000)
+  {
     changeCount = 0;
   }
 
-  if (changeCount >= RCSWITCH_MAX_CHANGES) {
+  if (changeCount >= RCSWITCH_MAX_CHANGES)
+  {
     changeCount = 0;
     repeatCount = 0;
   }

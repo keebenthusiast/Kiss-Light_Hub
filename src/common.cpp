@@ -16,7 +16,7 @@
 #include <signal.h>
 
 // electronics-related includes
-#include <wiringPi.h>
+#include <pigpio.h>
 
 // local includes
 #include "common.h"
@@ -81,10 +81,39 @@ void get_current_time( char *buf )
 float get_protocol_version( char *buf )
 {
     float protocol;
-    sscanf( buf, "KL/%f", &protocol );
 
-    if ( protocol <= 0.0 || strcmp(buf, "") == 0 )
+    /* 
+     * check to make sure buf isn't empty and first part equals KL or
+     * something along those lines
+     */
+    if ( strcmp(buf, "") == 0 || strncasecmp( buf, "KL", 2) != 0 )
+    {
         return -1.0;
+    }
+
+    /* Now extract the protocol version itself */
+    if ( strncmp( buf, "kl", 2) == 0 )
+    {
+        sscanf( buf, "kl/%f", &protocol );
+    }
+    else if ( strncmp( buf, "Kl", 2) == 0 )
+    {
+        sscanf( buf, "Kl/%f", &protocol );
+    }
+    else if ( strncmp( buf, "kL", 2 ) == 0 )
+    {
+        sscanf( buf, "kL/%f", &protocol );
+    }
+    else
+    {
+        sscanf( buf, "KL/%f", &protocol );
+    }
+
+    /* make sure the protocol version is correct */
+    if ( protocol <= 0.0 )
+    {
+        return -1.0;
+    }
 
     return protocol;
 }
@@ -178,7 +207,7 @@ int parse_server_input( char *buf, int *n )
 
         if ( error == 0 )
         {
-            if ( strcmp(str[2], "ON") == 0 )
+            if ( strncasecmp(str[2], "ON", 2) == 0 )
             {
                 /* 
                  * Toggle the toggle value in database. 
@@ -196,7 +225,7 @@ int parse_server_input( char *buf, int *n )
                 send_rf_signal( db_ptr->on, db_ptr->pulse );
                 *n = sprintf( buf, "KL/%.1f 200 Device %s On\n", KL_VERSION, str[1] );
             }
-            else if ( strcmp(str[2], "OFF") == 0 )
+            else if ( strncasecmp(str[2], "OFF", 3) == 0 )
             {
                 /* 
                  * Toggle the toggle value in database. 
@@ -510,7 +539,7 @@ int parse_server_input( char *buf, int *n )
         *n = sprintf( buf, "KL/%.1f 200 Sniffing\n", KL_VERSION );
         rv = 1;
     }
-    else if ( strcasecmp(str[0], "Q") == 0 || strcmp(str[0], "QUIT") == 0 )
+    else if ( strcasecmp(str[0], "Q") == 0 || strcasecmp(str[0], "QUIT") == 0 )
     {
         /* If user wants to exit, we'll let them know that their request is granted. */
         *n = sprintf( buf, "KL/%.1f 200 Goodbye\n", KL_VERSION );
@@ -547,7 +576,8 @@ void send_rf_signal( int code, int pulse )
     sw->setPulseLength( pulse );
 
     /* transmit is PIN 0 according to wiringPi */
-    sw->enableTransmit( get_int("electronics", "transmitter_pin", 0) );
+    //sw->enableTransmit( get_int("electronics", "transmitter_pin", 0) );
+    sw->enableTransmit( get_int("electronics", "transmitter_pin", 17) );
 
     /* so 24 is apparently the length of the signal, modify-able? */
     sw->send( code, 24 );
@@ -560,10 +590,11 @@ void send_rf_signal( int code, int pulse )
 void sniff_rf_signal( int &code, int &pulse, int &timeout )
 {
     /* indicate the device is busy */
-    set_status_led( LOW, LOW, HIGH );
+    set_status_led( PI_LOW, PI_LOW, PI_HIGH );
 
     /* receive (sniff) is PIN 2 according to wiringPi */
-    sw->enableReceive( get_int("electronics", "receiver_pin", 2) );
+    //sw->enableReceive( get_int("electronics", "receiver_pin", 2) );
+    sw->enableReceive( get_int("electronics", "receiver_pin", 27) );
 
     /* establish alarm handler */
     time_elapse = 0;
@@ -604,24 +635,24 @@ void sniff_rf_signal( int &code, int &pulse, int &timeout )
     sw->disableReceive();
 
     /* indicate the device is ready */
-    set_status_led( LOW, HIGH, LOW );
+    set_status_led( PI_LOW, PI_HIGH, PI_LOW );
 }
 
 /* initialize LEDs, for status indication */
 void initialize_leds()
 {
-    LED0 = get_int( "electronics", "led_pin0", 21 );
-    LED1 = get_int( "electronics", "led_pin1", 22 );
-    LED2 = get_int( "electronics", "led_pin2", 23 );
+    LED0 = get_int( "electronics", "led_pin0", 5 );
+    LED1 = get_int( "electronics", "led_pin1", 6 );
+    LED2 = get_int( "electronics", "led_pin2", 13 );
 
-    pinMode( LED0, OUTPUT );
-    pinMode( LED1, OUTPUT );
-    pinMode( LED2, OUTPUT );
+    gpioSetMode( LED0, PI_OUTPUT );
+    gpioSetMode( LED1, PI_OUTPUT );
+    gpioSetMode( LED2, PI_OUTPUT );
 
     /* set LED1 on for starters (currently the OK pin) */
-    digitalWrite( LED0, LOW );
-    digitalWrite( LED1, HIGH );
-    digitalWrite( LED2, LOW );
+    gpioWrite( LED0, PI_LOW );
+    gpioWrite( LED1, PI_HIGH );
+    gpioWrite( LED2, PI_LOW );
 }
 
 /*
@@ -632,21 +663,33 @@ void set_status_led( int led0, int led1, int led2 )
 {
     /* Set led0 */
     if ( led0 > 0 )
-        digitalWrite( LED0, HIGH );
+    {
+        gpioWrite( LED0, PI_HIGH );
+    }
     else
-        digitalWrite( LED0, LOW );
+    {
+        gpioWrite( LED0, PI_LOW );
+    }
 
     /* Set led1 */
     if ( led1 > 0 )
-        digitalWrite( LED1, HIGH );
+    {
+        gpioWrite( LED1, PI_HIGH );
+    }
     else
-        digitalWrite( LED1, LOW );
+    {
+        gpioWrite( LED1, PI_LOW );
+    }
 
     /* Set led2 */
     if ( led2 > 0 )
-        digitalWrite( LED2, HIGH );
+    {
+        gpioWrite( LED2, PI_HIGH );
+    }
     else
-        digitalWrite( LED2, LOW );
+    {
+        gpioWrite( LED2, PI_LOW );
+    }
 }
 
 /*
