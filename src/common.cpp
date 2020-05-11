@@ -207,7 +207,7 @@ int parse_server_input( char *buf, int *n )
 
         if ( error == 0 )
         {
-            if ( strcmp(str[2], "ON") == 0 )
+            if ( strncasecmp(str[2], "ON", 2) == 0 )
             {
                 /* 
                  * Toggle the toggle value in database. 
@@ -225,7 +225,7 @@ int parse_server_input( char *buf, int *n )
                 send_rf_signal( db_ptr->on, db_ptr->pulse );
                 *n = sprintf( buf, "KL/%.1f 200 Device %s On\n", KL_VERSION, str[1] );
             }
-            else if ( strcmp(str[2], "OFF") == 0 )
+            else if ( strncasecmp(str[2], "OFF", 3) == 0 )
             {
                 /* 
                  * Toggle the toggle value in database. 

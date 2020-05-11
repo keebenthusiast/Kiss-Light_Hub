@@ -1,5 +1,5 @@
 /*
- * Simple client written in Go.
+ * Simple kiss-light CLI client written in Go.
  *
  * Written By: Christian Kissinger
  */
@@ -7,15 +7,14 @@
 package main
 
 import ( 
-       "net"
-       //"flag"
-       "fmt"
-       "os"
-       "strconv"
-       "strings"
-       "bufio"
-       "time"
-       "gopkg.in/ini.v1"
+  "net"
+  "fmt"
+  "os"
+  "strconv"
+  "strings"
+  "bufio"
+  "time"
+  "gopkg.in/ini.v1"
 )
 
 const ( 
