@@ -32,9 +32,8 @@ Wiring scheme:
 
 make sure the following is installed (on a Raspberry Pi or compatible SBC) prior:
 
-- wiringPi*
-- pigpio
 - sqlite3
+- mosquitto
 - apache2
 
 *only for v0.4 and earlier
@@ -44,7 +43,7 @@ make sure the following is installed (on a Raspberry Pi or compatible SBC) prior
 To install the prerequisites, the following command will do the trick:
 
 ```shell
-sudo apt install wiringpi pigpio sqlite3 libsqlite3-dev apache2
+sudo apt install sqlite3 libsqlite3-dev mosquitto mosquitto-clients apache2
 ```
 
 after that, run the following:
