@@ -51,9 +51,6 @@ void handle_signal( int sig )
             }
         }
 
-        /* Turn off LED's to indicate the daemon isn't running. */
-        set_status_led( 0, 0, 0 );
-
         /* Close server's socket */
         close_socket();
 

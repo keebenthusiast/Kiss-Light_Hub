@@ -16,13 +16,6 @@ void get_current_time( char *buf );
  */
 int parse_server_input( char *buf, int *n );
 
-/* electrical related */
-void initialize_rc_switch();
-void send_rf_signal( int code, int pulse );
-void sniff_rf_signal( int &code, int &pulse, int &timeout );
-void initialize_leds();
-void set_status_led( int led0, int led1, int led2 );
-
 /* configuration parser related */
 void initialize_conf_parser();
 long get_int( const char *section, const char *name, long def_val );

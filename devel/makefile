@@ -1,16 +1,14 @@
 SRC = ..\src
 CC = arm-linux-gnueabihf-g++.exe
 CFLAGS = -g -Wall -fpermissive
-LIBS = -lsqlite3 -pthread -lpigpio -lrt
+LIBS = -lsqlite3 -pthread -lrt
 
 _DEPS = common.h daemon.h ini.h \
-INIReader.h log.h RCSwitch.h server.h \
-discovery.h
+INIReader.h log.h server.h
 DEPS = $(patsubst %,$(SRC)\\%,$(_DEPS))
 
 _OBJ = common.o log.o server.o \
-RCSwitch.o daemon.o ini.o \
-INIReader.o discovery.o
+daemon.o ini.o INIReader.o
 OBJ = $(patsubst %,$(SRC)\\%,$(_OBJ))
 
 all: kisslight

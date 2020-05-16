@@ -11,8 +11,6 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/mman.h>
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
@@ -23,15 +21,12 @@
 #include <arpa/inet.h>
 #include <poll.h>
 
-// electronics-related includes
-#include <pigpio.h>
 
 // local includes
 #include "server.h"
 #include "log.h"
 #include "common.h"
 #include "daemon.h"
-#include "discovery.h"
 
 /* 
  * When exiting, close server's socket,
@@ -53,8 +48,6 @@ struct sniffer
 static int create_socket();
 static void connection_handler(struct pollfd *connfds, int num);
 static void network_loop(int listenfd);
-static void *smalloc( size_t size );
-static int sfree( void *smlc, size_t size );
 
 int main( int argc, char **argv )
 {
@@ -87,28 +80,6 @@ int main( int argc, char **argv )
     signal( SIGINT, handle_signal );
 
     /*
-     * Initialize pigpio,
-     * RCSwitch, and Status LEDs.
-     */
-    
-    if ( gpioInitialise() < 0 )
-    {
-        perror( "pigpio error" );
-        write_to_log( (char *)"error initializing pigpio, insufficient privileges" );
-        return -1;
-    }
-    write_to_log( (char *)"pigpio initialized successfully" );
-
-    initialize_rc_switch();
-    initialize_leds();
-    
-    /*
-     * Create discovery thread,
-     */
-    pthread_t discov;
-    pthread_create( &discov, NULL, discovery_handler, NULL );
-
-    /*
      * Create socket.
      */
     listenfd = create_socket();
@@ -118,7 +89,6 @@ int main( int argc, char **argv )
      */
     if ( listen( listenfd, LISTEN_QUEUE ) < 0 )
     {
-        set_status_led( PI_HIGH, PI_HIGH, PI_HIGH );
         perror( "Listening error" );
         write_to_log( (char *)"error listening" );
         return -1;
@@ -128,10 +98,6 @@ int main( int argc, char **argv )
      * Time for Polling.
      */
     network_loop( listenfd );
-
-    /* When this is reached, it is time to exit! */
-    set_status_led( PI_LOW, PI_LOW, PI_LOW );
-    gpioTerminate();
 
     return 0;
 }
@@ -149,7 +115,6 @@ static int create_socket()
 
     if ( fd < 0 )
     {
-        set_status_led( PI_HIGH, PI_HIGH, PI_HIGH );
         perror( "error creating socket" );
         write_to_log( (char *)"error creating socket" );
         exit( 1 );
@@ -171,7 +136,6 @@ static int create_socket()
     /* Bind the fd */
     if ( bind( fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr) ) < 0 )
     {
-        set_status_led( PI_HIGH, PI_HIGH, PI_HIGH );
         perror( "Error binding" );
         write_to_log( (char *)"error binding" );
         exit( 1 );
@@ -210,75 +174,8 @@ static void connection_handler( struct pollfd *connfds, int num )
             /* Handle sniff request */
             if ( status == 1 )
             {
-                /* create shared memory pool first */
-                struct sniffer *shdmem = (struct sniffer *)smalloc( sizeof( struct sniffer ) );
-                shdmem->code = 0;
-                shdmem->pulse = 0;
-                shdmem->timeout = 0;
-
-                /* fork process to accomplish this task */
-                pid_t scn;
-                scn = fork();
-
-                /* Child process, execute! */
-                if ( scn == 0 )
-                {
-                    /* retreive codes, if not timed out */
-                    int code = 0, pulse = 0, timeout = 0;
-                    sniff_rf_signal( code, pulse, timeout );
-                    
-                    /* copy values from child to shared memory */
-                    shdmem->code = code;
-                    shdmem->pulse = pulse;
-                    shdmem->timeout = timeout;
-
-                    /* terminate gpio for child, no longer needed */
-                    gpioTerminate();
-
-                    /* Child is finished yay */
-                    exit( 0 );
-                }
-                /* Error occured while forking, tell client! */
-                else if ( scn < 0 )
-                {
-                    /* Free the shared memory */
-                    if ( sfree(shdmem, sizeof(struct sniffer)) < 0 )
-                    {
-                        write_to_log( (char *)"Error deleting memory after failed sniffing request" );
-                        exit( 1 );
-                    }
-
-                    /* Tell client about this */
-                    n = sprintf( buf[i-1], "KL/%.1f 500 unable to grant request\n", KL_VERSION );
-                }
-                /* Parent process, wait on child! */
-                else
-                {
-                    /* Wait for child to complete */
-                    wait( NULL );
-
-                    /* Analyze code and pulse, and verify timeout didn't occur. */    
-                    if( (shdmem->code <= 0 || shdmem->pulse <= 0) && shdmem->timeout <= 0 )
-                    {
-                        n = sprintf( buf[i-1], "KL/%.1f 406 Unknown Encoding\n", KL_VERSION );
-                    }
-                    else if ( shdmem->timeout > 0 )
-                    {
-                        n = sprintf( buf[i-1], "KL/%.1f 504 timed out\n", KL_VERSION );
-                    }
-                    else
-                    {
-                        n = sprintf( buf[i-1], "KL/%.1f 200 Code: %i Pulse: %i\n",
-                                    KL_VERSION, shdmem->code, shdmem->pulse );
-                    }
-                    
-                    /* Free the shared memory */
-                    if ( sfree(shdmem, sizeof(struct sniffer)) < 0 )
-                    {
-                        write_to_log( (char *)"Error deleting memory after sniffing" );
-                        exit( 1 );
-                    }
-                }
+                /* I got nothing... */
+                n = sprintf( buf[i-1], "KL/%.1f 200 I got nothing...\n", KL_VERSION );
 
                 write( connfds[i].fd, buf[i-1], n );
             }
@@ -339,7 +236,6 @@ static void network_loop( int listenfd )
                 }
                 else
                 {
-                    set_status_led( PI_HIGH, PI_HIGH, PI_HIGH );
                     perror( "Error Accepting" );
                     write_to_log( (char *)"error accepting" );
                     exit( 1 );
@@ -372,7 +268,6 @@ static void network_loop( int listenfd )
              */
             if ( i >= POLL_SIZE )
             {
-                set_status_led( PI_HIGH, PI_LOW, PI_HIGH );
                 fprintf( stderr, "too many clients, exiting...\n" );
                 write_to_log( (char *)"error, too many clients" );
                 exit( 1 );
@@ -403,24 +298,4 @@ static void network_loop( int listenfd )
 void close_socket()
 {
     closeSocket = 1;
-}
-
-/*
- * Allows the server to create shared memory,
- * for usage when scanning/sniffing.
- */
-void *smalloc( size_t size )
-{
-    /* Buffer will be readable and writable, shared but anonymous. */
-    return mmap( NULL, size, (PROT_READ | PROT_WRITE), (MAP_SHARED | MAP_ANONYMOUS), -1, 0 );
-}
-
-/*
- * Shared memory can be freed for later use!
- * 
- * should return 0 for success, -1 for error.
- */
-int sfree( void *smlc, size_t size )
-{
-    return munmap( smlc, size );
 }

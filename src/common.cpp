@@ -15,26 +15,18 @@
 #include <unistd.h>
 #include <signal.h>
 
-// electronics-related includes
-#include <pigpio.h>
-
 // local includes
 #include "common.h"
 #include "log.h"
 #include "ini.h"
-#include "RCSwitch.h"
 #include "INIReader.h"
 
 /* local variable used for server's timeout */
 static int time_elapse = 0;
 
-/* only for common.cpp's usage (hopefully) */
-static void alarm_handler( int signal );
-
 /* local configuration variables */
 static char strbuf[2048];
 static INIReader *conf;
-static RCSwitch *sw;
 static int LED0, LED1, LED2;
 
 /* struct to save data from database, temporarily */
@@ -158,7 +150,7 @@ int parse_server_input( char *buf, int *n )
             return rv;
         }
 
-        send_rf_signal( c, p );
+
         sprintf( lgbuf,"entered Code: %i Pulse: %i", c, p );
         write_to_log( lgbuf );
 
@@ -222,7 +214,6 @@ int parse_server_input( char *buf, int *n )
                     write_to_log( lgbuf );
                 }
 
-                send_rf_signal( db_ptr->on, db_ptr->pulse );
                 *n = sprintf( buf, "KL/%.1f 200 Device %s On\n", KL_VERSION, str[1] );
             }
             else if ( strncasecmp(str[2], "OFF", 3) == 0 )
@@ -240,7 +231,6 @@ int parse_server_input( char *buf, int *n )
                     write_to_log( lgbuf );
                 }
 
-                send_rf_signal( db_ptr->off, db_ptr->pulse );
                 *n = sprintf( buf, "KL/%.1f 200 Device %s Off\n", KL_VERSION, str[1] );
             }
             else
@@ -301,12 +291,17 @@ int parse_server_input( char *buf, int *n )
         {
             if ( db_ptr->toggle )
             {
-                send_rf_signal( db_ptr->on, db_ptr->pulse );
+                /*
+                 * Empty
+                 */
             }
             else
             {
-                send_rf_signal( db_ptr->off, db_ptr->pulse );
+                /*
+                 * empty
+                 */
             }
+
             sprintf( lgbuf,"entered Code: %i Pulse: %i",
                      (db_ptr->toggle) ? db_ptr->on : db_ptr->off, db_ptr->pulse );
             write_to_log( lgbuf );
@@ -557,148 +552,6 @@ int parse_server_input( char *buf, int *n )
     strcpy( str[3], "" );
 
     return rv;
-}
-
-/***************************************************************************************
- * Everything related to electrical will reside here.
- **************************************************************************************/
-
-/* initialize sw variable, for RF transmission/receival */
-void initialize_rc_switch()
-{
-    sw = new RCSwitch();
-}
-
-/* send RF Signal */
-void send_rf_signal( int code, int pulse )
-{
-    /* toggle switch, given code and pulse */
-    sw->setPulseLength( pulse );
-
-    /* transmit is PIN 0 according to wiringPi */
-    //sw->enableTransmit( get_int("electronics", "transmitter_pin", 0) );
-    sw->enableTransmit( get_int("electronics", "transmitter_pin", 17) );
-
-    /* so 24 is apparently the length of the signal, modify-able? */
-    sw->send( code, 24 );
-
-    /* disable pin after transmission */
-    sw->disableTransmit();
-}
-
-/* sniff RF signal from a remote (for example) */
-void sniff_rf_signal( int &code, int &pulse, int &timeout )
-{
-    /* indicate the device is busy */
-    set_status_led( PI_LOW, PI_LOW, PI_HIGH );
-
-    /* receive (sniff) is PIN 2 according to wiringPi */
-    //sw->enableReceive( get_int("electronics", "receiver_pin", 2) );
-    sw->enableReceive( get_int("electronics", "receiver_pin", 27) );
-
-    /* establish alarm handler */
-    time_elapse = 0;
-    signal( SIGALRM, &alarm_handler );
-    alarm( TIME_OUT );
-
-    /*
-     * Wait until something is found for TIME_OUT amount of time,
-     * once found, exit as it's done.
-     * 
-     * otherwise, still exit.
-     */
-    while ( !time_elapse )
-    {
-        if ( sw->available() )
-        {
-            code = sw->getReceivedValue();
-            pulse = sw->getReceivedDelay();
-            break;
-        }
-
-        sw->resetAvailable();
-    }
-
-    /* 
-     * So we can differentiate from
-     * an invalid code and timed out event.
-     */
-    if ( time_elapse )
-    {
-        timeout++;
-    }
-
-    /* reset time_elapse just in case */
-    time_elapse = 0;
-
-    /* disable receive pin after data reception */
-    sw->disableReceive();
-
-    /* indicate the device is ready */
-    set_status_led( PI_LOW, PI_HIGH, PI_LOW );
-}
-
-/* initialize LEDs, for status indication */
-void initialize_leds()
-{
-    LED0 = get_int( "electronics", "led_pin0", 5 );
-    LED1 = get_int( "electronics", "led_pin1", 6 );
-    LED2 = get_int( "electronics", "led_pin2", 13 );
-
-    gpioSetMode( LED0, PI_OUTPUT );
-    gpioSetMode( LED1, PI_OUTPUT );
-    gpioSetMode( LED2, PI_OUTPUT );
-
-    /* set LED1 on for starters (currently the OK pin) */
-    gpioWrite( LED0, PI_LOW );
-    gpioWrite( LED1, PI_HIGH );
-    gpioWrite( LED2, PI_LOW );
-}
-
-/*
- * Accept basically any value to turn on LEDs.
- * Though treating this as a boolean might be easier.
- */
-void set_status_led( int led0, int led1, int led2 )
-{
-    /* Set led0 */
-    if ( led0 > 0 )
-    {
-        gpioWrite( LED0, PI_HIGH );
-    }
-    else
-    {
-        gpioWrite( LED0, PI_LOW );
-    }
-
-    /* Set led1 */
-    if ( led1 > 0 )
-    {
-        gpioWrite( LED1, PI_HIGH );
-    }
-    else
-    {
-        gpioWrite( LED1, PI_LOW );
-    }
-
-    /* Set led2 */
-    if ( led2 > 0 )
-    {
-        gpioWrite( LED2, PI_HIGH );
-    }
-    else
-    {
-        gpioWrite( LED2, PI_LOW );
-    }
-}
-
-/*
- * Very simple handler which increments
- * the time_elapse variable.
- */
-void alarm_handler( int signal )
-{
-    time_elapse = 1;
 }
 
 /***************************************************************************************
