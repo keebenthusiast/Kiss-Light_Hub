@@ -1,49 +1,29 @@
 # Kiss-Light
 
-## This repository is largely left unmaintained, but feel free to make use of it anyways
+### WORK IN PROGRESS
 
-Yet another RF outlet controller, where it is controlled from a Raspberry Pi, and the client is a simple command line application.
+Yet another home automation hub, where it can be essentially hosted on anything, and the client is a simple command line application.
 
-The idea is essentially make it as simple as possible, but still have useful functionality that could easily be used in home automation or just used standalone for DIYers.
+The idea is essentially make it to make the implementation as simple as possible, but aim for expert home automation enthusiasts.
 
-It should be noted that this project is used in conjunction with 433MHz RF modules, it could probably work with 315MHz RF Modules, but that has not been tested currently.
+## Installation
 
-let's dive right into it.
+### WORK IN PROGRESS
 
-## Wiring
-
-![RPi wiring](./KissLight_RPI_RF_433_wiring_diagramv2.png)
-
-The wiring can be done with either the Raspberry Pi 0 W (as shown), or with any
-Raspberry Pi with 40 pins. Though this has not been tested with a Raspberry Pi 4 yet.
-
-Make sure to have 3 different colored LEDs, the 3 red LEDs on the diagram are there to indicate that LEDs are a part of this project.
-
-Wiring scheme:
-
-- Red wire is for the small error status LED
-- Green wire is for the all good status LED
-- Blue wire is for the busy status LED
-- Purple wire is for Transmitter and Receiver Data
-- Orange wire is for 5V
-- Black wire is for Ground
-
-## Installation (server)
-
-make sure the following is installed (on a Raspberry Pi or compatible SBC) prior:
+make sure the following is installed prior:
 
 - sqlite3
 - mosquitto
-- apache2
-
-*only for v0.4 and earlier
+- nginx
 
 ---
 
 To install the prerequisites, the following command will do the trick:
 
+(for Ubuntu/Debian systems)
+
 ```shell
-sudo apt install sqlite3 libsqlite3-dev mosquitto mosquitto-clients apache2
+sudo apt install sqlite3 libsqlite3-dev mosquitto mosquitto-clients nginx
 ```
 
 after that, run the following:
@@ -55,26 +35,9 @@ sudo make install
 
 And the program should be up and running after the sudo make install step.
 
-## Installation (client)
-
-Make sure GoLang is installed, and is at least version 1.6 or later.
-
-All that is needed is the IP addresss the Raspberry Pi (or compatible SBC) kisslight server has,
-and to set this ip address in `client/kl-client.ini` in the `ipaddr` variable:
-
-Once the ip address of the kisslight server has been set, installation can be done like so:
-
-```shell
-make client-install
-```
-
-Uninstallation of kisslight client can be done as well:
-
-```shell
-make client-uninstall
-```
-
 ## Using Telnet and How Server Works
+
+### WORK IN PROGRESS
 
 It should be noted that numbers here are in decimal, unless otherwise specified.
 
@@ -192,107 +155,11 @@ computer ~ $
 
 ****version#** is currently ```0.2```*
 
-## Client Usage
-
-Now that the server has been covered in a fair amount of detail, time for the client.
-
-Like the rest of the project, the client is still being worked on as well.
-
-The usage currently looks like this:
-
-```shell
-computer ~ $ kl-client
-To change states of existing devices
-
-Usage: ./kl-client set <device name> on|off
-                   toggle <device name>
-                   send <code> <pulse>
-
-Adding/deleting, and listing devices can be done as follows:
-
-Usage: ./kl-client add <device name> ([--manual|-m] <on or off code> <pulse>)
-                   delete <device name>
-                   list
-
-Enter scan mode can be done using the following:
-
-Usage: ./kl-client scan
-
-Discover available kiss-light servers (and use as the server):
-
-Usage: ./kl-client discover ([--use-as-server])
-```
-
-### Example usages of each command
-
-Add device(s):
-
-```shell
-computer ~ $ kl-client add outlet0
-Scanning, please press the desired button <enter desired button from RF remote>
-Scanning successful, attempting to add device 'outlet0'
-Added Device 'outlet0' Successfully
-computer ~ $ kl-client add outlet1 -m 5592380 189
-Added Device 'outlet1' Successfully
-```
-
-Set device On or Off directly:
-
-```shell
-computer ~ $ kl-client set outlet0 on
-Successfully Set Device 'outlet0' on
-computer ~ $ kl-client set outlet0 off
-Successfully Set Device 'outlet0' off
-```
-
-Toggle device:
-
-```shell
-computer ~ $ kl-client toggle outlet0
-Toggled Device 'outlet0' Successfully
-```
-
-Send custom code:
-
-```shell
-computer ~ $ kl-client send 5592371 189
-Transmitted code:5592371 pulse:189 Successfully
-```
-
-Scan (or sniff) RF signal from RF remote to receiver:
-
-```shell
-computer ~ $ kl-client scan
-Scanning, please press the desired button
-Scanning successful, Code=5592380, Pulse=189, Off was scanned.
-computer ~ $ kl-client scan
-Scanning, please press the desired button
-Scanning successful, Code=5592371, Pulse=189, On was scanned.
-```
-
-List available Devices:
-
-```shell
-computer ~ $ kl-client list
-Here is the list:
-outlet0
-outlet1
-```
-
-Finally, delete device:
-
-```shell
-computer ~ $ kl-client delete outlet1
-Deleted Device 'outlet1' Successfully
-```
-
-and that covers at least what would be seen when each command is run succesfully. Anything may very well change in the client, but at least the server should remain largely as is, how devices get added may change though.
-
 ## Credits
 
-[HamletXiaoyu](https://github.com/HamletXiaoyu) for socket poll demo. [[repo](https://github.com/HamletXiaoyu/socket-poll)]
+### WORK IN PROGRESS
 
-[timleland](https://github.com/timleland) for the RCSwitch code [[repo](https://github.com/timleland/rfoutlet)] [[blog](https://timleland.com/wireless-power-outlets/)]
+[HamletXiaoyu](https://github.com/HamletXiaoyu) for socket poll demo. [[repo](https://github.com/HamletXiaoyu/socket-poll)]
 
 [jirihnidek](https://github.com/jirihnidek) for example daemon [[repo](https://github.com/jirihnidek/daemon)]
 
