@@ -153,13 +153,17 @@ static void connection_handler( struct pollfd *connfds, int num )
 
     for ( i = 1; i <= num; i++ )
     {
+        /* No connection, move on */
         if ( connfds[i].fd < 0 )
+        {
             continue;
+        }
         
         if ( connfds[i].revents & POLLIN )
         {
             n = read( connfds[i].fd, buf[i-1], get_int("network", "buffer_size", BUFFER_SIZE) );
 
+            /* The client must have disconnected, move on */
             if ( n == 0 )
             {
                 close( connfds[i].fd );
@@ -174,7 +178,6 @@ static void connection_handler( struct pollfd *connfds, int num )
             /* Handle sniff request */
             if ( status == 1 )
             {
-                /* I got nothing... */
                 n = sprintf( buf[i-1], "KL/%.1f 200 I got nothing...\n", KL_VERSION );
 
                 write( connfds[i].fd, buf[i-1], n );
