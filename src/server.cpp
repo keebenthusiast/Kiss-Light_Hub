@@ -1,7 +1,7 @@
 /*
  * A server whos job is given the command either "on" or "off",
  * it will turn on or off whatever is connected to the outlet.
- * 
+ *
  * Written by: Christian Kissinger
  */
 
@@ -28,7 +28,7 @@
 #include "common.h"
 #include "daemon.h"
 
-/* 
+/*
  * When exiting, close server's socket,
  * using this variable
  */
@@ -53,7 +53,7 @@ int main( int argc, char **argv )
 {
     int listenfd;
 
-    /* 
+    /*
      * Initialize Configuration file
      */
     initialize_conf_parser();
@@ -66,7 +66,7 @@ int main( int argc, char **argv )
     /*
      * Run as Daemon if specified.
      */
-    
+
     if ( argc >= 2 )
     {
         if ( strcmp(argv[1], "daemon") == 0 )
@@ -120,7 +120,7 @@ static int create_socket()
         exit( 1 );
     }
 
-    /* set serv_addr to 0 initially. */    
+    /* set serv_addr to 0 initially. */
     memset( &serv_addr, 0, sizeof(serv_addr) );
 
     serv_addr.sin_family = AF_INET;
@@ -158,7 +158,7 @@ static void connection_handler( struct pollfd *connfds, int num )
         {
             continue;
         }
-        
+
         if ( connfds[i].revents & POLLIN )
         {
             n = read( connfds[i].fd, buf[i-1], get_int("network", "buffer_size", BUFFER_SIZE) );
@@ -235,7 +235,7 @@ static void network_loop( int listenfd )
             {
                 if ( errno == EINTR )
                 {
-                    continue;   
+                    continue;
                 }
                 else
                 {
@@ -246,9 +246,9 @@ static void network_loop( int listenfd )
             }
 
             /* output to stdout, and write to log as well. */
-            fprintf( stdout, "accept new client: %s:%d\n", 
+            fprintf( stdout, "accept new client: %s:%d\n",
                                  inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port );
-            sprintf( lgbuf, "accept new client: %s:%d", 
+            sprintf( lgbuf, "accept new client: %s:%d",
                                  inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port );
             write_to_log( lgbuf );
 
@@ -262,9 +262,9 @@ static void network_loop( int listenfd )
                 }
             }
 
-            /* 
+            /*
              * if there are too many clients, self-destruct!
-             * 
+             *
              * Luckily not likely going to happen
              * with what I am working with...
              *  ... hopefully of course.
@@ -284,7 +284,7 @@ static void network_loop( int listenfd )
             if ( --nready <= 0 )
                 continue;
         }
-        
+
         /* handle the actual connection */
         connection_handler( clientfds, maxi );
 

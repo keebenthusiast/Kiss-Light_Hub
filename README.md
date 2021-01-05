@@ -6,6 +6,9 @@ Yet another home automation hub, where it can be essentially hosted on anything,
 
 The idea is essentially make it to make the implementation as simple as possible, but aim for expert home automation enthusiasts.
 
+The end goal is to make this portable enough to work on a standard Rasbperry Pi, but possible to throw in an openwrt-enabled
+router as an enclosed solution.
+
 ## Installation
 
 ### WORK IN PROGRESS
@@ -14,7 +17,6 @@ make sure the following is installed prior:
 
 - sqlite3
 - mosquitto
-- nginx
 
 ---
 
@@ -23,7 +25,7 @@ To install the prerequisites, the following command will do the trick:
 (for Ubuntu/Debian systems)
 
 ```shell
-sudo apt install sqlite3 libsqlite3-dev mosquitto mosquitto-clients nginx
+sudo apt install sqlite3 libsqlite3-dev mosquitto mosquitto-clients
 ```
 
 after that, run the following:
@@ -41,49 +43,38 @@ And the program should be up and running after the sudo make install step.
 
 It should be noted that numbers here are in decimal, unless otherwise specified.
 
-The default port for this server is ```1155```, so make sure to use that port, or whatever is set in the configuration for this program when using telnet.
+It is assumed that mosquitto has been setup prior, for now without TLS but TLS will eventually get implemented. and it will be assumed that
+port ```1883``` is used for mosquitto.
 
-Once connected, the following will transmit the given RF code with the given pulse:
+It is also assumed that a device in use is sporting the tasmota or some other open source firmware to allow the use of mqtt, and that the device
+itself is already connected to the appropriate network and knows information relating to the mosquitto server.
+
+Finally, the default port for this server is ```1155```, so make sure to use that port, or whatever is set in the configuration for this program when using telnet.
+
+Once connected, the following will transmit a custom mqtt topic and command without storing it into a database:
 
 ```plaintext
 Template:
-TRANSMIT <code> <pulse> KL/<version#>
-KL/<version#> 200 Custom Code Sent
+TRANSMIT <full topic> <command> KL/<version#>
+KL/<version#> 200 Custom Command '<full topic> <command>' Sent
 
 Example in practice:
-TRANSMIT 5592371 189 KL/0.2
-KL/0.2 200 Custom Code Sent
+TRANSMIT cmnd/tasmota/power toggle KL/0.3
+KL/0.3 200 Custom Command 'cmnd/tasmota/power toggle' Sent
 ```
 
-A code and its pulse is acquirable from an RF Remote (for example) that may control
-another desired outlet:
+Adding a device is very straightforward, a potentially different device name from the topic assigned to the device:
+
+***device type is not yet supported, it is assumed that the device in question is an outlet.
 
 ```plaintext
 Template:
-SNIFF KL/<version#>
-KL/<version#> 200 Sniffing
-<enter desired button from RF remote>
-KL/<version#> 200 Code: <code> Pulse: <pulse>
-
-Example in Practice:
-SNIFF KL/0.2
-KL/0.2 200 Sniffing
-<enter desired button from RF remote>
-KL/0.2 200 Code: 5592380 Pulse: 188
-```
-
-Once On and Off codes have been recorded somewhere, it is possible to save
-those to the server's database. As of version `0.2` however, it is now
-possible to only need the On code or Off code to save it, as demonstrated:
-
-```plaintext
-Template:
-ADD <device name> <On or Off code> <pulse> KL/<version#>
+ADD <device name> <topic> <device type> KL/<version#>
 KL/<version#> 200 Device <device name> Added
 
 Example in practice:
-ADD lamp 5592371 189 KL/0.2
-KL/0.2 200 Device lamp Added
+ADD lamp tasmota 1 KL/0.3
+KL/0.3 200 Device lamp Added
 ```
 
 Toggling the saved device can be done as follows:
@@ -94,12 +85,11 @@ TOGGLE <device name> KL/<version#>
 KL/<version#> 200 Device <device name> Toggled
 
 Example in practice:
-TOGGLE lamp KL/0.2
-KL/0.2 200 Device lamp Toggled
+TOGGLE lamp KL/0.3
+KL/0.3 200 Device lamp Toggled
 ```
 
-Explicitely setting the saved device on or off is now doable
-as of KL version `0.2`:
+Explicitely setting the saved device on or off is also possible:
 
 ```plaintext
 Template:
@@ -107,13 +97,13 @@ SET <device name> <ON or OFF> KL/<version#>
 KL/<version#> 200 Device <device name> <On or Off>
 
 Example in Practice:
-SET lamp ON KL/0.2
-KL/0.2 200 Device lamp On
+SET lamp ON KL/0.3
+KL/0.3 200 Device lamp On
 
 or
 
-SET lamp OFF KL/0.2
-KL/0.2 200 Device lamp Off
+SET lamp OFF KL/0.3
+KL/0.3 200 Device lamp Off
 ```
 
 Suppose there are several devices added, and it is desired
@@ -124,12 +114,14 @@ is how it can be done:
 Template:
 LIST KL/<version#>
 KL/<version#> 200 Number of Devices n
-(n line of device names, up to 30 currently)
+(n line of device names, and respective topic)
 
 Example in Practice:
-LIST KL/0.2
-KL/0.2 200 Number of Devices 1
-lamp
+LIST KL/0.3
+KL/0.3 200 Number of Devices 3
+lamp -- tasmota
+outlet -- tasmota1
+bulb -- rgbbulb0
 ```
 
 Deleting a device can also be done as follows:
@@ -137,12 +129,25 @@ Deleting a device can also be done as follows:
 ```plaintext
 Template:
 DELETE <device name> KL/<version#>
-KL/0.2 200 Device <device name> Deleted
+KL/<version#> 200 Device <device name> Deleted
 
 Example in Practice:
 DELETE lamp KL/0.2
-KL/0.2 200 Device lamp Deleted
+KL/0.3 200 Device lamp Deleted
 ```
+
+Retreiving a device's current status can be done by doing this:
+
+```plaintext
+Template:
+STATUS <device name> KL/<version#>
+KL/<version#> 200 device <device name> status: <status>
+
+Example in Practice:
+STATUS lamp KL/0.3
+KL/0.3 200 device lamp status: OFF
+```
+
 
 Finally, exiting from the server fairly cleanly is also doable:
 
@@ -153,7 +158,7 @@ Connection closed by foreign host.
 computer ~ $
 ```
 
-****version#** is currently ```0.2```*
+****version#** is currently ```0.3```*
 
 ## Credits
 

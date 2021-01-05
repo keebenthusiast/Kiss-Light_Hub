@@ -74,7 +74,7 @@ float get_protocol_version( char *buf )
 {
     float protocol;
 
-    /* 
+    /*
      * check to make sure buf isn't empty and first part equals KL or
      * something along those lines
      */
@@ -201,8 +201,8 @@ int parse_server_input( char *buf, int *n )
         {
             if ( strncasecmp(str[2], "ON", 2) == 0 )
             {
-                /* 
-                 * Toggle the toggle value in database. 
+                /*
+                 * Toggle the toggle value in database.
                  * So if toggle is called for this device,
                  * it will turn off!
                  */
@@ -218,8 +218,8 @@ int parse_server_input( char *buf, int *n )
             }
             else if ( strncasecmp(str[2], "OFF", 3) == 0 )
             {
-                /* 
-                 * Toggle the toggle value in database. 
+                /*
+                 * Toggle the toggle value in database.
                  * So if toggle is called for this device,
                  * it will turn on!
                  */
