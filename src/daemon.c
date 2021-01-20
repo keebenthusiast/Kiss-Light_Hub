@@ -24,17 +24,17 @@ static int pid_fd = -1;
 // local isDaemon boolean
 static int isDaemon = 0;
 
-/*  
+/*
  * Brief Callback function for handling signals.
  * Param    sig     identifier of signal
  */
 void handle_signal( int sig )
 {
     /* Stop the daemon... cleanly. */
-    if ( sig == SIGINT ) 
+    if ( sig == SIGINT )
     {
         write_to_log( (char *)"stopping server" );
-        
+
         if ( isDaemon )
         {
             /* Unlock and close the lockfile. */
@@ -67,7 +67,7 @@ void handle_signal( int sig )
     {
         write_to_log( (char *)"Debug: recieved Unknown signal" );
     }
-    
+
 }
 
 /*
@@ -101,11 +101,11 @@ static void daemonize()
         write_to_log( (char *)"unable to set child process to become session leader" );
         exit( EXIT_FAILURE );
     }
-    
+
     /* Ignore signal sent from child to parent process */
     signal( SIGCHLD, SIG_IGN );
 
-    /* 
+    /*
      * This seems to be a tester to make sure the SIGCHLD is indeed ignored.
      */
     /* Fork again.. */
@@ -173,7 +173,7 @@ static void daemonize()
     }
 }
 
-/* 
+/*
  * Function for main function in server.cpp to allow
  * running as a daemon.
  */
