@@ -170,4 +170,8 @@ computer ~ $
 
 [benhoyt](https://github.com/benhoyt) for ini parser [[repo](https://github.com/benhoyt/inih)]
 
+[LiamBindle](https://github.com/LiamBindle) for mqtt-c library [[repo](https://github.com/LiamBindle/MQTT-C)]
+
+[rxi](https://github.com/rxi) for the log library [[repo](https://github.com/rxi/log.c)]
+
 others I may have missed...
