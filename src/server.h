@@ -10,9 +10,23 @@
 #ifndef SERVER_H_
 #define SERVER_H_
 
+/* Includes in case the compiler complains */
+#include <pthread.h>
+#include <semaphore.h>
+
 /* To make sure config data type is known about. */
 #include "common.h"
 #include "mqtt.h"
+
+/*******************************************************************************
+ * Non-specific server-related initializations will reside here.
+ * such as: sharing pointers to some buffers
+ ******************************************************************************/
+
+void assign_buffers( uint8_t **srvr_buf, uint8_t **str_buf,
+                     char *tpc, char *application_msg,
+                     db_data *data, config *cfg, int *to_chng,
+                     pthread_mutex_t *lck, sem_t *mtx );
 
 /*******************************************************************************
  * Server function declarations will reside here.
@@ -28,13 +42,18 @@ void close_socket();
  ******************************************************************************/
 /* A way to create a socket for the mqtt functions. */
 int open_nb_socket(const char *addr, const char *port);
-int initialize_mqtt( struct mqtt_client *client, int sockfd,
+
+int initialize_mqtt( struct mqtt_client *client, int *sockfd,
                                uint8_t *snd_buf, uint8_t *recv_buf,
                                config *conf );
-void publish_kl_callback(void** unused,
+
+void publish_kl_callback(void** client,
                          struct mqtt_response_publish *published);
 
+void* client_refresher(void* client);
+
 enum {
+   // should be at least 3
     POLL_SIZE = 12,
     LISTEN_QUEUE = 10,
     ARG_LEN = 4,

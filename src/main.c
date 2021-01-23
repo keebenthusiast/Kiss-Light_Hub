@@ -35,6 +35,7 @@ typedef struct
 
     // SQL buffers
     char *sql_buffer;
+    int *changes;
 
     // Mqtt buffers
     uint8_t *send_buffer;
@@ -49,13 +50,14 @@ typedef struct
  * The buffers are memsetted
  * so valgrind will not complain.
  */
-static void allocate_buffers( buffers *bfrs, config *cfg, db_data *data )
+static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
 {
     log_trace( "allocating buffers" );
     log_debug( "allocating server buffers" );
 
     bfrs->server_buffer = malloc( (POLL_SIZE - 2) * sizeof(char *) );
     bfrs->str_buffer = malloc( ARG_LEN * sizeof(char *) );
+    bfrs->changes = (int *)malloc( cfg->max_dev_count * sizeof(int) );
 
     // One big loop to avoid the need for several
     for ( int i = 0; i < cfg->max_dev_count; i++ )
@@ -75,9 +77,19 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *data )
             memset( bfrs->server_buffer[i], 0, cfg->buffer_size );
         }
 
-        memset( data[i].dev_name, 0, DB_DATA_LEN );
-        memset( data[i].mqtt_topic, 0, DB_DATA_LEN );
-        data[i].dev_type = -1;
+        /* initialize the changes buffer too */
+        bfrs->changes[i] = -1;
+
+        memset( memory[i].dev_name, 0, DB_DATA_LEN );
+        memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
+        memory[i].dev_type = -1;
+        memory[i].dev_state = -1;
+
+        memset( memory[i].cmnd_topic, 0, DB_DATA_LEN );
+        memset( memory[i].stat_topic, 0, DB_DATA_LEN );
+
+        memset( memory[i].odev_name, 0, DB_DATA_LEN );
+        memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
     }
 
     log_debug( "allocating sql buffer" );
@@ -104,7 +116,7 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *data )
 /*
  * A local clean-up function for when the program has to exit.
  */
-static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *data,
+static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
                      struct mqtt_client *client )
 {
     log_trace( "freeing allocated memory" );
@@ -143,8 +155,8 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *data,
         bfrs->server_buffer[i] = NULL;
     }
 
-    free( data );
-    data = NULL;
+    free( memory );
+    memory = NULL;
 
     free( bfrs->server_buffer );
     bfrs->server_buffer = NULL;
@@ -154,6 +166,9 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *data,
 
     free( bfrs->sql_buffer );
     bfrs->sql_buffer = NULL;
+
+    free( bfrs->changes );
+    bfrs->changes = NULL;
 
     free( bfrs->send_buffer );
     bfrs->send_buffer = NULL;
@@ -220,51 +235,37 @@ int main( int argc, char **argv )
 
     /* Allocate Buffers for server, mqtt functions, sqlite functions */
     buffers *bfrs = (buffers *)malloc( sizeof(buffers) );
-    db_data *data = (db_data *)malloc( cfg->max_dev_count * sizeof(db_data) );
-    allocate_buffers( bfrs, cfg, data );
+    db_data *memory = (db_data *)malloc( cfg->max_dev_count * sizeof(db_data) );
+    allocate_buffers( bfrs, cfg, memory );
+
+    /* Initialize mutex semaphores, share info to server part of code */
+    log_trace( "Initializing semaphores and copying data to server code" );
+    pthread_mutex_t lock;
+    sem_t mutex;
+    pthread_mutex_init( &lock, NULL );
+    sem_init( &mutex, 0, 1 );
+    assign_buffers( bfrs->server_buffer, bfrs->str_buffer,
+                    bfrs->topic, bfrs->application_message, memory,
+                    cfg, bfrs->changes, &lock, &mutex );
+    log_trace( "semaphores initialized" );
 
     /* Initialize sqlite functions */
-    initialize_db( bfrs->sql_buffer, data );
+    log_trace( "Initialize sqlite and fill up RAM" );
+    int status = initialize_db( bfrs->sql_buffer, memory, bfrs->changes,
+                                &lock, &mutex );
 
-    /*
-     *
-     *
-     *
-     *  TO BE REMOVED!!!!!!!!!!!!!!!!!!!!!!
-     *
-     *
-     */
-    int db_len =  get_db_len();
-    printf( "number of entries: %d\n", db_len );
-
-    int db_ret = dump_db_entries();
-
-    if ( db_ret < 0 )
+    if ( status < 0 )
     {
-        log_error( "Error opening sqlite3 file" );
+        log_error( "Unable to open sqlite3 file, exiting..." );
+        cleanup( lg, bfrs, cfg, memory, NULL );
+        return 1;
     }
-    else if ( db_ret )
+    else if ( status )
     {
-        log_error( "Some sort of SQL error occurred" );
+        log_error( "Some SQL error occurred, exiting..." );
+        cleanup( lg, bfrs, cfg, memory, NULL );
+        return 1;
     }
-    else
-    {
-        for ( int i = 0; i < db_len; i++ )
-        {
-            fprintf( stdout,
-            "output %d of %d (device name, mqtt topic," \
-            " device type): %s %s %d\n",
-            i, db_len,
-            data[i].dev_name, data[i].mqtt_topic, data[i].dev_type );
-        }
-    }
-
-    update_db_entry( "newg", "simbulz", NULL, NULL, -1 );
-
-    /*
-     *
-     * END OF TO BE REMOVED!!!!!!!!!!!!!!!!!
-     */
 
     /* Initialize mqtt listener */
     char port_str[10];
@@ -277,22 +278,28 @@ int main( int argc, char **argv )
         log_error( "Failed to open socket" );
 
         /* Cleanup and exit, this is a big deal. */
-        //exit_example(EXIT_FAILURE, sockfd, NULL);
-        cleanup( lg, bfrs, cfg, data, NULL );
+        cleanup( lg, bfrs, cfg, memory, NULL );
         return 1;
 
     }
     log_trace( "mqtt socket established" );
 
-    log_debug( "Initializing mqtt server itself" );
+    log_debug( "Initializing mqtt client" );
 
     struct mqtt_client *client = (struct mqtt_client*)malloc(
         sizeof(struct mqtt_client)
     );
 
-    int mqtt_stat = initialize_mqtt( client, sockfd_mqtt, bfrs->send_buffer,
+    int mqtt_stat = initialize_mqtt( client, &sockfd_mqtt, bfrs->send_buffer,
                                      bfrs->receive_buffer, cfg );
 
+    /*
+     * A loop to subscribe all the stat topics
+     *
+     * TODO: TO BE IMPLEMENTED
+     */
+    //for ( int i = 0; i < cfg->max_dev_count; i++ )
+    //
 
     /* Finally, initialize the kisslight server itself */
     int sockfd = create_server_socket( cfg->port );
@@ -306,6 +313,56 @@ int main( int argc, char **argv )
         log_trace( "server socket established" );
 
         /*
+         * TO BE REMOVED!!!
+         */
+        /* Establish pthread for daemon */
+        pthread_t client_daemon;
+        if( pthread_create(&client_daemon, NULL, client_refresher, client) )
+        {
+            log_error( "Failed to start mqtt client daemon, exiting..." );
+
+            if (sockfd_mqtt != -1 )
+            {
+                close( sockfd_mqtt );
+                /* Cleanup and exit, this is a big deal. */
+                cleanup( lg, bfrs, cfg, memory, client );
+                return 1;
+            }
+        }
+
+        pthread_t database;
+        if ( pthread_create(&database, NULL, db_updater, NULL) )
+        {
+            log_error( "Failed to start db updater, exiting..." );
+
+            if (sockfd_mqtt != -1 )
+            {
+                close( sockfd_mqtt );
+                /* Cleanup and exit, this is a big deal. */
+                cleanup( lg, bfrs, cfg, memory, client );
+                return 1;
+            }
+        }
+
+        mqtt_subscribe( client, "stat/tasmota/POWER", 0 );
+
+        /* start publishing the time */
+        printf( "listening for 'stat/tasmota/POWER' messages.\n" );
+        printf( "Press CTRL-D to exit.\n\n" );
+
+        /* block */
+        while(fgetc(stdin) != EOF);
+
+        /* disconnect */
+        printf( "\ndisconnecting\n" );
+
+
+        pthread_cancel(client_daemon);
+        pthread_cancel(database);
+        pthread_join(client_daemon, NULL);
+        pthread_join(database, NULL);
+
+        /*
          * Time to Poll and run the server's network loop.
          */
 
@@ -317,7 +374,7 @@ int main( int argc, char **argv )
         log_error( "Error creating sockfd" );
 
         /* Cleanup and exit, this is a big deal. */
-        cleanup( lg, bfrs, cfg, data, client );
+        cleanup( lg, bfrs, cfg, memory, client );
         return 1;
     }
 
@@ -325,7 +382,7 @@ int main( int argc, char **argv )
      * From this point, it can be safely assumed that
      * if this point is reached, it is time to wrap up.
      */
-    cleanup( lg, bfrs, cfg, data, client);
+    cleanup( lg, bfrs, cfg, memory, client );
 
     return 0;
 }

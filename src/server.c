@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 // socket-related includes
 #include <netinet/in.h>
@@ -31,11 +32,51 @@
 #include "daemon.h"
 #include "mqtt.h"
 
+// pointer to config cfg;
+static config *conf;
+
+// pointers for database functions.
+static db_data *memory;
+static int *to_change;
+
+// pointers for various server buffers
+static uint8_t **server_buffer;
+static uint8_t **str_buffer;
+
+// mqtt buffers
+static char *topic;
+static char *app_msg;
+
+// System pointers
+static pthread_mutex_t *lock;
+static sem_t *mutex;
+
 /*
  * When exiting, close server's socket,
  * using this variable
  */
 static unsigned int closeSocket = 0;
+
+/*******************************************************************************
+ * Non-specific server-related initializations will reside here.
+ * such as: sharing pointers to some buffers
+ ******************************************************************************/
+
+void assign_buffers( uint8_t **srvr_buf, uint8_t **str_buf,
+                     char *tpc, char *application_msg,
+                     db_data *data, config *cfg, int *to_chng,
+                     pthread_mutex_t *lck, sem_t *mtx )
+{
+    server_buffer = srvr_buf;
+    str_buffer = str_buf;
+    topic = tpc;
+    app_msg = application_msg;
+    memory = data;
+    to_change = to_chng;
+    conf = cfg;
+    lock = lck;
+    mutex = mtx;
+}
 
 /*******************************************************************************
  * Everything related to message parsing will reside here.
@@ -156,8 +197,12 @@ void close_socket()
  ******************************************************************************/
 
 /*
-   Create a non-blocking socket for mqtt use!
-*/
+ * Analyzes the sent state and get an idea
+ */
+
+/*
+ * Create a non-blocking socket for mqtt use!
+ */
 int open_nb_socket( const char *addr, const char *port )
 {
     struct addrinfo hints = {0};
@@ -213,11 +258,11 @@ int open_nb_socket( const char *addr, const char *port )
 }
 
 /* The Mqtt init function */
-int initialize_mqtt( struct mqtt_client *client, int sockfd,
+int initialize_mqtt( struct mqtt_client *client, int *sockfd,
                                uint8_t *snd_buf, uint8_t *recv_buf,
                                config *conf )
 {
-    mqtt_init( client, sockfd, snd_buf, conf->snd_buff,
+    mqtt_init( client, *sockfd, snd_buf, conf->snd_buff,
                recv_buf, conf->recv_buff, publish_kl_callback );
 
     /* Create an anonymous session */
@@ -241,9 +286,144 @@ int initialize_mqtt( struct mqtt_client *client, int sockfd,
 }
 
 /* The publish callback function */
-void publish_kl_callback(void** unused, struct mqtt_response_publish *published)
+void publish_kl_callback( void** client,
+                         struct mqtt_response_publish *published )
 {
-    /* not used in this example */
+    /*
+     * If a device state changes, update it accordingly
+     */
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    int topic_found = -1;
+    int memory_location = -1;
+
+    strncpy( topic, published->topic_name, published->topic_name_size );
+    strncpy( app_msg, published->application_message,
+             published->application_message_size );
+    printf( "%s : %s\n", topic, app_msg );
+
+    /* Find a match! */
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        if ( strncasecmp(topic, memory[i].stat_topic,
+                         strlen(topic)) == 0 )
+        {
+            topic_found = 1;
+            memory_location = i;
+            break;
+        }
+
+        /* no matching topics? for now just quietly ignore. */
+        if ( i == (conf->max_dev_count - 1) )
+        {
+            topic_found = 0;
+        }
+    }
+
+    /* if a match is found, change the state */
+    if ( topic_found )
+    {
+        /* assume the dev_state will change */
+        int change_permitted = 1;
+
+        /*
+         * Now to compare app message
+         */
+        if ( strncasecmp(app_msg, "ON", 3) == 0 )
+        {
+            printf( "Detected that it is on!\n" );
+            memory[memory_location].dev_state = 1;
+        }
+        else if ( strncasecmp(app_msg, "OFF", 4) == 0 )
+        {
+            printf( "Detected that it is off!\n" );
+            memory[memory_location].dev_state = 0;
+        }
+        else
+        {
+            /* If here is reached, don't bother for now */
+            /*
+             * THIS MAY NEED TO BE REVISED
+             * TO SUPPORT RGB LIGHTS... IF
+             * I DECIDE TO SUPPORT THOSE.
+             */
+            log_warn( "Detected something different from topic %s : %s",
+                      topic, app_msg );
+            change_permitted = 0;
+        }
+
+        if ( change_permitted )
+        {
+            /* make sure a change isn't already staged */
+            switch( to_change[memory_location] )
+            {
+                // Only state needs to be updated, continue
+                case -1:
+                case 0:
+                    to_change[memory_location] = 0;
+                    break;
+
+                // dev_name is to be updated, stage as a full update
+                case 1:
+                {
+                    strncpy( memory[memory_location].omqtt_topic,
+                             memory[memory_location].mqtt_topic,
+                             strlen(memory[memory_location].mqtt_topic) );
+
+                    to_change[memory_location] = 4;
+                    break;
+                }
+
+                // mqtt_topic is to be updated, stage a full update
+                case 2:
+                {
+                    strncpy( memory[memory_location].odev_name,
+                             memory[memory_location].dev_name,
+                             strlen(memory[memory_location].dev_name) );
+
+                    to_change[memory_location] = 4;
+                    break;
+                }
+
+                // dev_type is to be updated, stage a full update
+                case 3:
+                {
+                    strncpy( memory[memory_location].odev_name,
+                             memory[memory_location].dev_name,
+                             strlen(memory[memory_location].dev_name) );
+                    strncpy( memory[memory_location].omqtt_topic,
+                             memory[memory_location].mqtt_topic,
+                             strlen(memory[memory_location].mqtt_topic) );
+
+                    to_change[memory_location] = 4;
+                    break;
+                }
+
+                // No need to update these
+                case 4:
+                case 5:
+                case 6:
+                    /* ignore, leave value alone */
+                    break;
+
+                default:
+                {
+                    log_error( "Reached the default case which" \
+                               " shouldn't happen" );
+                    break;
+                }
+            }
+        }
+    }
+
+    /* memset topic and app message buffers for later use */
+    memset( topic, 0, conf->topic_buff );
+    memset( app_msg, 0, conf->app_msg_buff );
+
+    /* All done! (for now) */
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
 }
 
 /**
@@ -252,12 +432,13 @@ void publish_kl_callback(void** unused, struct mqtt_response_publish *published)
  *
  * @param client is the struct mqtt_client to pass in.
  */
-void* client_refresher(void* client)
+void *client_refresher(void* client)
 {
     while(1)
     {
-        mqtt_sync((struct mqtt_client*) client);
-        usleep(100000U);
+        mqtt_sync( (struct mqtt_client*) client );
+
+        usleep( 100000U );
     }
     return NULL;
 }

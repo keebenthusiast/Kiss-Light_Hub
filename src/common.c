@@ -25,13 +25,19 @@ static config *conf;
 
 // pointers for database functions.
 static char *sql_buf;
-static db_data *data_out;
+static db_data *memory;
 
-/* global variable for a db counter,
+/*
+ * global variable for a db counter,
  * and another for entry size;
  */
 static int db_counter = 0;
 static int db_len = -1;
+static int *to_change;
+
+// System pointers
+static pthread_mutex_t *lock;
+static sem_t *mutex;
 
 /* Some function declarations for future use */
 static void reset_db_counter();
@@ -143,13 +149,55 @@ int initialize_conf_parser( config *cfg )
 
 /*
  * Initialize everything for database usage.
- * Returns 0 for a success, 1 for any error that may occur.
+ * Returns 1 when an SQL error occurs,
+ * Returns -1 when unable to open db file,
+ * Returns 0 otherwise.
  */
-void initialize_db( char *sql_buffer, db_data *dat )
+int initialize_db( char *sql_buffer, db_data *dat, int *to_chng,
+                   pthread_mutex_t *lck, sem_t *mtx )
 {
-    /* establish a local pointer for sql_buffer */
+    /*
+     * establish a local pointer for sql_buffer,
+     * and copy everything in database to memory.
+     */
     sql_buf = sql_buffer;
-    data_out = dat;
+    memory = dat;
+    to_change = to_chng;
+
+    /* establish a local pointer for lock semaphore */
+    lock = lck;
+    mutex = mtx;
+
+    /* Get the count */
+    int status = get_db_len();
+
+    if ( status < -1 )
+    {
+        log_error( "Error opening sqlite3 file" );
+        return -1;
+    }
+    else if ( status < 0 )
+    {
+        log_error( "Some sort of SQL error occurred" );
+        return 1;
+    }
+
+    /* Migrate everything to memory */
+    status = dump_db_entries();
+
+    if ( status < 0 )
+    {
+        log_error( "Error opening sqlite3 file" );
+        return -1;
+    }
+    else if ( status )
+    {
+        log_error( "Some sort of SQL error occurred" );
+        return 1;
+    }
+
+    return 0;
+
 }
 
 /* Function to verify device type, or
@@ -203,19 +251,29 @@ static int db_callback( void *data, int argc, char **argv, char **azColName )
 {
     for ( int i = 0; i < argc; i++ )
     {
-        if ( strncmp(azColName[i], "dev_name", 8) == 0  )
+        if ( strncmp(azColName[i], "dev_name", 9) == 0  )
         {
-            strncpy( data_out[db_counter].dev_name,
-            argv[i], (sizeof(argv[i])/sizeof(char)) );
+            strncpy( memory[db_counter].dev_name,
+            argv[i], strlen(argv[i]) );
         }
-        else if ( strncmp(azColName[i], "mqtt_topic", 10) == 0 )
+        else if ( strncmp(azColName[i], "mqtt_topic", 11) == 0 )
         {
-            strncpy( data_out[db_counter].mqtt_topic,
-            argv[i], (sizeof(argv[i])/sizeof(char)) );
+            strncpy( memory[db_counter].mqtt_topic,
+            argv[i], strlen(argv[i]) );
+
+            /* Also copy full topic as well */
+            snprintf( memory[db_counter].stat_topic, (12 + strlen(argv[i])),
+                      "stat/%s/POWER", argv[i] );
+            snprintf( memory[db_counter].cmnd_topic, (12 + strlen(argv[i])),
+                      "cmnd/%s/POWER", argv[i] );
         }
-        else if ( strncmp(azColName[i], "dev_type", 8) == 0 )
+        else if ( strncmp(azColName[i], "dev_type", 9) == 0 )
         {
-            data_out[db_counter].dev_type = atoi( argv[i] );
+            memory[db_counter].dev_type = atoi( argv[i] );
+        }
+        else if ( strncmp(azColName[i], "dev_state", 10) == 0 )
+        {
+            memory[db_counter].dev_state = atoi( argv[i] );
         }
         // a special case to get the count
         else if ( strncmp( azColName[i], "COUNT(*)", 8) == 0 )
@@ -293,11 +351,11 @@ static void reset_db_counter()
  * And this simplifies it for the programmer a bit.
  *
  * Note from Christian: I am aware that this does break consistency
- * with other functions, but since a length of 1 is possible,
- * that is my reasoning for returning either a 0 or -1 for any errors.
+ * with other functions, but since a length of 0 is possible,
+ * that is my reasoning for returning either a -1 or -2 for any errors.
  *
- * Returns 0 when an SQL error occurs,
- * Returns -1 when unable to open db file,
+ * Returns -1 when an SQL error occurs,
+ * Returns -2 when unable to open db file,
  * Returns actual length otherwise.
  */
 int get_db_len()
@@ -309,20 +367,25 @@ int get_db_len()
     if ( db_ret < 0 )
     {
         log_error( "Error opening sqlite3 file" );
+        db_ret = -2;
     }
     else if ( db_ret )
     {
         log_error( "Some sort of SQL error occurred" );
-        db_ret = 0;
+        db_ret = -1;
     }
 
-    log_trace( "Amount of devices currently: %d", db_len );
+    /* only if everything is successful */
+    if ( db_len >= 0 )
+    {
+        log_trace( "Amount of devices currently: %d", db_len );
+        db_ret = db_len;
+    }
 
     /* memset the sql buffer */
     memset( sql_buf, 0, conf->db_buff );
 
-    return db_len;
-
+    return db_ret;
 }
 
 /**
@@ -359,9 +422,10 @@ int insert_db_entry( char *dev_name, char *mqtt_topic, const int type )
     int count = get_digit_count( verified_type );
 
     /* put it all together */
-    int n = snprintf( sql_buf, (39 + strlen(dev_name) +
+    /* dev_state is currently unknown so -1 */
+    int n = snprintf( sql_buf, (43 + strlen(dev_name) +
     strlen(mqtt_topic) + count),
-    "INSERT INTO device VALUES( '%s', '%s', %d );",
+    "INSERT INTO device VALUES( '%s', '%s', %d, -1 );",
     dev_name, mqtt_topic, type );
 
     /* Actually execute the insert db query */
@@ -384,77 +448,6 @@ int insert_db_entry( char *dev_name, char *mqtt_topic, const int type )
 }
 
 /*
- * The select query, does the work
- * of actually getting the desired
- * entry.
- *
- * Returns 2 when a user error occurs,
- * Returns 1 when an SQL error occurs,
- * Returns -1 when unable to open db file,
- * Returns 0 otherwise.
- */
-int select_db_entry( char *dev_name, char *mqtt_topic )
-{
-    int n = -1;
-
-    // dev_name is our criteria
-    if ( mqtt_topic == NULL )
-    {
-        n = snprintf( sql_buf, (69 + strlen(dev_name)),
-        "SELECT dev_name, mqtt_topic, dev_type FROM device" \
-        " WHERE dev_name='%s';", dev_name );
-    }
-    // mqtt_topic is our criteria
-    else if ( dev_name == NULL)
-    {
-        n = snprintf( sql_buf, (71 + strlen(mqtt_topic)),
-        "SELECT dev_name, mqtt_topic, dev_type FROM device" \
-        " WHERE mqtt_topic='%s';", mqtt_topic );
-    }
-    // both are used
-    else if ( dev_name != NULL && mqtt_topic != NULL )
-    {
-        n = snprintf( sql_buf, (87 + strlen(dev_name) + strlen(mqtt_topic)),
-        "SELECT dev_name, mqtt_topic, dev_type FROM device" \
-        " WHERE dev_name='%s' AND mqtt_topic='%s';", dev_name, mqtt_topic );
-    }
-    // should NEVER EVER be accessed
-    else
-    {
-        /* Forget about this, won't even process this query. */
-        log_error( "come now both mqtt_topic and" \
-        " dev_name can't be null!" );
-
-        /* memset the sql buffer */
-        memset( sql_buf, 0, conf->db_buff );
-
-        return 2;
-    }
-
-
-    int db_ret = execute_db_query( sql_buf );
-
-    if ( db_ret < 0 )
-    {
-        log_error( "Error opening sqlite3 file" );
-    }
-    else if ( db_ret )
-    {
-        log_error( "Some sort of SQL error occurred" );
-    }
-    else
-    {
-        log_trace( "entry retreived: %s - %s - %d",
-        data_out[0].dev_name, data_out[0].mqtt_topic, data_out[0].dev_type );
-    }
-
-    /* memset the sql buffer */
-    memset( sql_buf, 0, conf->db_buff );
-
-    return db_ret;
-}
-
-/*
  * A specialized select function
  * which has the primary function of dumping
  * existing entries.
@@ -465,8 +458,9 @@ int select_db_entry( char *dev_name, char *mqtt_topic )
  */
 int dump_db_entries()
 {
-    strncpy( sql_buf, "SELECT dev_name, mqtt_topic, dev_type FROM device;",
-             51 );
+    strncpy( sql_buf, "SELECT dev_name, mqtt_topic, dev_type," \
+            " dev_state FROM device;",
+             62 );
 
     int db_ret = execute_db_query( sql_buf );
 
@@ -536,7 +530,7 @@ int update_db_entry( char *odev_name, char *ndev_name,
     }
     else if ( ( (odev_name == NULL)
              && (omqtt_topic == NULL) )
-           && verified_ndev_type == -1 )
+             && verified_ndev_type == -1 )
     {
         log_error( "Ambiguity regarding changing dev_type" );
 
@@ -676,6 +670,78 @@ int update_db_entry( char *odev_name, char *ndev_name,
     return db_ret;
 }
 
+
+/*
+ * This has the job of updating a dev_state
+ * given dev_name, mqtt_topic, or both.
+ *
+ * a quirk here could be the state can be set to some unkown state,
+ * but it could be useful for if/when RGB bulbs get implemented..
+ */
+int update_db_dev_state( char *dev_name, char *mqtt_topic,
+                         const int new_state )
+{
+    int n = -1;
+
+    // dev_name is our criteria
+    if ( mqtt_topic == NULL )
+    {
+        n = snprintf( sql_buf, (48 + strlen(dev_name) +
+        get_digit_count(new_state)),
+        "UPDATE device SET dev_state=%d WHERE dev_name='%s';",
+        new_state, dev_name );
+    }
+    // mqtt_topic is our criteria
+    else if ( dev_name == NULL)
+    {
+        n = snprintf( sql_buf, (50 + strlen(mqtt_topic) +
+        get_digit_count(new_state)),
+        "UPDATE device SET dev_state=%d WHERE mqtt_topic='%s';",
+        new_state, mqtt_topic );
+    }
+    // both are used
+    else if ( dev_name != NULL && mqtt_topic != NULL )
+    {
+        n = snprintf( sql_buf, (66 + strlen(dev_name) + strlen(mqtt_topic) +
+        get_digit_count(new_state)),
+        "UPDATE device SET dev_state=%d WHERE dev_name='%s' AND" \
+        " mqtt_topic='%s';",
+        new_state, dev_name, mqtt_topic );
+    }
+    // should NEVER EVER be accessed
+    else
+    {
+        /* Forget about this, won't even process this query. */
+        log_error( "come now both mqtt_topic and" \
+        " dev_name can't be null!" );
+
+        /* memset the sql buffer */
+        memset( sql_buf, 0, conf->db_buff );
+
+        return 2;
+    }
+
+    int db_ret = execute_db_query( sql_buf );
+
+    if ( db_ret < 0 )
+    {
+        log_error( "Error opening sqlite3 file" );
+    }
+    else if ( db_ret )
+    {
+        log_error( "Some sort of SQL error occurred" );
+    }
+    else
+    {
+        log_trace( "entry updated successfully" );
+    }
+
+    /* memset the sql buffer */
+    memset( sql_buf, 0, conf->db_buff );
+
+    return db_ret;
+}
+
 /*
  * This is the way to remove entries.
  *
@@ -745,25 +811,189 @@ int delete_db_entry( char *dev_name, char *mqtt_topic )
     return db_ret;
 }
 
-/* Has the soul purpose of clearing db_data buffer for reuse */
-void reset_db_data()
+/**
+ * @brief the data refresher which updates database
+ * at every roughly 5 seconds, if there is
+ * a change to be made of course.
+ *
+ * @param args is not used atm.
+ */
+void *db_updater( void* args )
 {
-    int db_ret = get_db_len();
+    /* sleep for 5 seconds initially */
+    usleep(100000*50U);
 
-    if ( db_ret < 0 )
+    while( 1 )
     {
-        log_error( "Error opening sqlite3 file" );
-    }
-    else if ( db_ret )
-    {
-        log_warn( "Unable to update db_len, using as is" );
+        sem_wait( mutex );
+        pthread_mutex_lock( lock );
+
+        /*
+         * Critical Section
+         */
+        for ( int i = 0; i < conf->max_dev_count; i++ )
+        {
+            switch( to_change[i] )
+            {
+                // No changes needed
+                case -1:
+                    /* Do Nothing */
+                    break;
+
+                // Update i's dev_state
+                case 0:
+                {
+                    update_db_dev_state( memory[i].dev_name,
+                                         memory[i].mqtt_topic,
+                                         memory[i].dev_state );
+
+                    /* nothing to reset, so continue */
+                    break;
+                }
+
+                // Update i's dev_name
+                case 1:
+                {
+                    update_db_entry( memory[i].odev_name, memory[i].dev_name,
+                                     NULL, NULL, -1 );
+
+                    /* reset for later use */
+                    memset( memory[i].odev_name, 0, DB_DATA_LEN );
+
+                    break;
+                }
+
+                // Update i's mqtt_topic
+                case 2:
+                {
+                    update_db_entry( NULL, NULL, memory[i].omqtt_topic,
+                                     memory[i].mqtt_topic, -1 );
+
+                    /* reset for later use */
+                    memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+
+                    break;
+                }
+
+                // Update i's device_type
+                case 3:
+                {
+                    update_db_entry( memory[i].dev_name, NULL,
+                                     memory[i].mqtt_topic, NULL,
+                                     memory[i].dev_type );
+
+                    /* There is nothing to reset, this is done */
+                    break;
+                }
+
+                // Update all (makes it easier)
+                case 4:
+                {
+                    /* Update dev_state first just to be safe */
+                    update_db_dev_state( memory[i].dev_name,
+                                         memory[i].mqtt_topic,
+                                         memory[i].dev_state );
+
+                    /* Now to update the rest */
+                    update_db_entry( memory[i].odev_name, memory[i].dev_name,
+                                     memory[i].omqtt_topic,
+                                     memory[i].mqtt_topic,
+                                     memory[i].dev_type );
+
+                    /* reset for later use */
+                    memset( memory[i].odev_name, 0, DB_DATA_LEN );
+                    memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+
+                    break;
+                }
+
+                // Add new device that's in i
+                case 5:
+                {
+                    insert_db_entry( memory[i].dev_name, memory[i].mqtt_topic,
+                                     memory[i].dev_type );
+
+                    get_db_len();
+
+                    break;
+                }
+
+                // remove i's device
+                case 6:
+                {
+                    /*
+                     * this time we do want to verify that
+                     * the query ran correctly, and delete
+                     * things only afterwards.
+                     */
+                    int db_ret = -1;
+
+                    if ( memory[i].odev_name[0] != '\0'
+                      && memory[i].omqtt_topic[0] != '\0' )
+                    {
+                        db_ret = delete_db_entry( memory[i].odev_name,
+                                                  memory[i].omqtt_topic );
+                    }
+                    else if ( memory[i].odev_name[0] != '\0'
+                           && memory[i].omqtt_topic[0] == '\0' )
+                    {
+                        db_ret = delete_db_entry( memory[i].odev_name,
+                                                  memory[i].mqtt_topic );
+                    }
+                    else if ( memory[i].odev_name[0] == '\0'
+                           && memory[i].omqtt_topic[0] != '\0' )
+                    {
+                        db_ret = delete_db_entry( memory[i].dev_name,
+                                                  memory[i].omqtt_topic );
+                    }
+                    else
+                    {
+                        db_ret = delete_db_entry( memory[i].dev_name,
+                                                  memory[i].mqtt_topic );
+                    }
+
+
+                    if ( db_ret < 0 )
+                    {
+                        log_error( "Error opening sqlite3 file, "\
+                                   "not removing entry" );
+                    }
+                    else if ( db_ret )
+                    {
+                        log_error( "desired entry not deleted due to SQL" \
+                                   " Error" );
+
+                    }
+
+                    /* reset for later use */
+                    memset( memory[i].dev_name, 0, DB_DATA_LEN );
+                    memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
+                    memory[i].dev_type = -1;
+                    memory[i].dev_state = -1;
+
+                    memset( memory[i].odev_name, 0, DB_DATA_LEN );
+                    memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+
+                    break;
+                }
+
+                default:
+                {
+                    log_warn( "default case reached, unknown option %d",
+                               to_change[i] );
+                    break;
+                }
+            }
+
+            to_change[i] = -1;
+        }
+
+        pthread_mutex_unlock( lock );
+        sem_post( mutex );
+
+        /* sleep for 5 seconds */
+        usleep(100000*50U);
     }
 
-    /* Actually reset the db_data struct*/
-    for (int i = db_len; i < db_len; i++ )
-    {
-        memset( data_out[i].dev_name, 0, DB_DATA_LEN );
-        memset( data_out[i].mqtt_topic, 0, DB_DATA_LEN );
-        data_out[i].dev_type = -1;
-    }
+    return NULL;
 }
