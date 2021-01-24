@@ -1,6 +1,12 @@
 /*
- * A server whos job is given the command either "on" or "off",
- * it will turn on or off whatever is connected to the outlet.
+ * The server which has the job of handling mqtt publishes and subscriptions,
+ * and whatever a user may request a connected mqtt device to handle.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (C) 2019-2021, Christian Kissinger
+ * kiss-light Hub is released under the New BSD license (see LICENSE).
+ * Go to the project repo here:
+ * https://gitlab.com/kiss-light-project/Kiss-Light_Hub
  *
  * Written by: Christian Kissinger
  */
@@ -82,9 +88,13 @@ void assign_buffers( uint8_t **srvr_buf, uint8_t **str_buf,
  * Everything related to message parsing will reside here.
  ******************************************************************************/
 
-/*
- * Check protocol version
- * return protocol_version if valid
+/**
+ * @brief Check protocol version.
+ *
+ * @param buf the buffer that contains the protocol version.
+ *
+ * @note example being: KL/0.3 .
+ * Return protocol_version if valid
  * or -1.0 if invalid.
  */
 static float get_protocol_version(char *buf)
@@ -127,12 +137,15 @@ static float get_protocol_version(char *buf)
     return protocol;
 }
 
-/*
- * Parse whatever the client sent in,
+/**
+ * @brief Parse whatever the client sent in,
  * Do the task if applicable,
  * And send over the proper response.
  *
- * returns -1 to exit,
+ * @param buf the buffer to be analyzed, THEN MODIFIED.
+ * @param n the buffer length, modified when buf is modified.
+ *
+ * @note returns -1 to exit,
  * returns 0 for all is good,
  * returns 1 to enter sniff mode,
  */
@@ -146,7 +159,13 @@ int parse_server_input(char *buf, int *n)
  * Everything related to the server will reside here.
  ******************************************************************************/
 
-/* Create, Initialize, and return the server's socketfd. */
+/**
+ * @brief Create, Initialize, and return the server's socketfd.
+ *
+ * @param port the port the server listens on.
+ *
+ * @note Returns -1 if an error occurs, the actual integer otherwise.
+ */
 int create_server_socket( const int port )
 {
     int fd;
@@ -196,12 +215,13 @@ void close_socket()
  * Everything related to mqtt will reside here.
  ******************************************************************************/
 
-/*
- * Analyzes the sent state and get an idea
- */
-
-/*
- * Create a non-blocking socket for mqtt use!
+/**
+ * @brief Create a non-blocking socket for mqtt use.
+ *
+ * @param addr The address of an mqtt broker server.
+ * @param port The port the mqtt broker server listens on.
+ *
+ * @note Returns -1 if an error occurs, the actual integer otherwise.
  */
 int open_nb_socket( const char *addr, const char *port )
 {
@@ -257,7 +277,17 @@ int open_nb_socket( const char *addr, const char *port )
     return sockfd;
 }
 
-/* The Mqtt init function */
+/**
+ * @brief The Mqtt init function.
+ *
+ * @param client the mqtt_client struct.
+ * @param sockfd the mqtt server's sockfd.
+ * @param snd_buf the mqtt client's send buffer.
+ * @param recv_buf the mqtt client's receive buffer.
+ * @param conf the configuration struct.
+ *
+ * @note returns 1 for when an error occurs, 0 otherwise.
+ */
 int initialize_mqtt( struct mqtt_client *client, int *sockfd,
                                uint8_t *snd_buf, uint8_t *recv_buf,
                                config *conf )
@@ -285,7 +315,13 @@ int initialize_mqtt( struct mqtt_client *client, int *sockfd,
     return 0;
 }
 
-/* The publish callback function */
+/**
+ * @brief The mqtt publish (when subscribed) callback function.
+ *
+ * @param client not used
+ * @param published contains topic_name and application_message
+ *
+ */
 void publish_kl_callback( void** client,
                          struct mqtt_response_publish *published )
 {

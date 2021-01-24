@@ -2,6 +2,12 @@
  * The main file for this application,
  * so it can make things easier to follow.
  *
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (C) 2019-2021, Christian Kissinger
+ * kiss-light Hub is released under the New BSD license (see LICENSE).
+ * Go to the project repo here:
+ * https://gitlab.com/kiss-light-project/Kiss-Light_Hub
+ *
  * Written by: Christian Kissinger
  */
 
@@ -25,7 +31,8 @@
 #include "log.h"
 
 /*
- * A struct to keep track of various buffers
+ * A struct to keep track of various buffers,
+ * meant only for main usage
  */
 typedef struct
 {
@@ -45,10 +52,16 @@ typedef struct
 
 } buffers;
 
-/*
- * Allocate buffers,
- * The buffers are memsetted
+/**
+ * @brief Allocate buffers.
+ *
+ * @param bfrs the buffers to be malloc'd.
+ * @param cfg to allocate buffers per what config contains.
+ * @param memory the struct array for database entries.
+ *
+ * @note The buffers are memsetted
  * so valgrind will not complain.
+ *
  */
 static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
 {
@@ -113,8 +126,16 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
     log_trace( "all buffers allocated" );
 }
 
-/*
- * A local clean-up function for when the program has to exit.
+/**
+ * @brief A local clean-up function for when the program has to exit.
+ *
+ * @param lg the logfile to be closed.
+ * @param bfrs the buffers to be free'd.
+ * @param cfg the config struct to be free'd.
+ * @param memory the database struct array to be free'd.
+ * @param client the mqtt_client to be free'd, can be NULL if not
+ * yet allocated.
+ *
  */
 static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
                      struct mqtt_client *client )
@@ -201,13 +222,13 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
 
 }
 
-/*
- * Where it all begins!
+/**
+ * @brief Where it all begins!
  */
 int main( int argc, char **argv )
 {
     /* Initialize logger */
-    FILE *lg = fopen( LOGLOCATION, "a" );
+    FILE *lg = fopen( LOGLOCATION, "w" );
 
     if ( lg == NULL )
     {
@@ -230,7 +251,31 @@ int main( int argc, char **argv )
 
     /* Analyze command line args (should override config if specified to) */
     /* This is also where running as a daemon would be specified */
-    process_args( argc, argv );
+    int arg_result = process_args( argc, argv );
+
+    if ( arg_result )
+    {
+        log_debug( "Failed to daemonize, exiting..." );
+
+        /* Clean up as this is a big deal. */
+        if ( cfg->db_loc != NULL )
+        {
+            free( (void*)cfg->db_loc );
+            cfg->db_loc = NULL;
+        }
+
+        if ( cfg->mqtt_server != NULL )
+        {
+            free( (void*)cfg->mqtt_server );
+            cfg->mqtt_server = NULL;
+        }
+
+        free( cfg );
+
+        fclose( lg );
+
+        return 1;
+    }
     log_trace( "args processed" );
 
     /* Allocate Buffers for server, mqtt functions, sqlite functions */
@@ -292,6 +337,13 @@ int main( int argc, char **argv )
 
     int mqtt_stat = initialize_mqtt( client, &sockfd_mqtt, bfrs->send_buffer,
                                      bfrs->receive_buffer, cfg );
+
+    if ( mqtt_stat )
+    {
+        log_error( "Failed to initialize MQTT server, exiting..." );
+        cleanup(lg, bfrs, cfg, memory, client );
+        return 1;
+    }
 
     /*
      * A loop to subscribe all the stat topics

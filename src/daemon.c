@@ -1,9 +1,21 @@
+/*
+ * The Daemonizer, borrowed from here:
+ * https://github.com/jirihnidek/daemon
+ *
+ * Adapted by: Christian Kissinger
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (C) 2019-2021, Christian Kissinger
+ * kiss-light Hub is released under the New BSD license (see LICENSE).
+ * Go to the project repo here:
+ * https://gitlab.com/kiss-light-project/Kiss-Light_Hub
+ *
+ */
 
 // system-related includes
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <signal.h>
 #include <getopt.h>
 #include <string.h>
@@ -24,16 +36,17 @@ static int pid_fd = -1;
 // local isDaemon boolean
 static int isDaemon = 0;
 
-/*
- * Brief Callback function for handling signals.
- * Param    sig     identifier of signal
+/**
+ * @brief Callback function for handling signals.
+ *
+ * @param    sig     identifier of signal
  */
 void handle_signal( int sig )
 {
     /* Stop the daemon... cleanly. */
     if ( sig == SIGINT )
     {
-        write_to_log( (char *)"stopping server" );
+        log_trace( "Stopping server" );
 
         if ( isDaemon )
         {
@@ -60,22 +73,29 @@ void handle_signal( int sig )
     /* Ignore a given SIGCHLD. */
     else if ( sig == SIGCHLD )
     {
-        write_to_log( (char *)"Debug: recieved SIGCHLD signal" );
+        log_debug( "received SIGCHLD signal, ignored" );
+    }
+    /* Ignore a given SIGHUP */
+    else if ( sig == SIGHUP )
+    {
+        log_debug( "received SIGHUP signal, ignored" );
     }
     /* Ignore anything else too. */
     else
     {
-        write_to_log( (char *)"Debug: recieved Unknown signal" );
+        log_debug( "Received signal not implemented to be handled: %d", sig );
     }
 
 }
 
-/*
- * This function will daemonize kiss-light.
+/**
+ * @brief This function will daemonize kiss-light.
+ *
+ * @note It isn't called directly, use run_as_daemon() for that
  */
-static void daemonize()
+static int daemonize()
 {
-    write_to_log( (char *)"daemonizing" );
+    log_trace( "Daemonizing" );
     pid_t pid = 0;
     int fd;
 
@@ -85,8 +105,8 @@ static void daemonize()
     /* Error forking occurred. */
     if ( pid < 0 )
     {
-        write_to_log( (char *)"unable to fork from parent process" );
-        exit( EXIT_FAILURE );
+        log_fatal( "Unable to fork from parent process" );
+        return EXIT_FAILURE;
     }
 
     /* Though if successful, terminate the parent process. */
@@ -98,12 +118,13 @@ static void daemonize()
     /* Set the child process to become the new session leader. */
     if ( setsid() < 0 )
     {
-        write_to_log( (char *)"unable to set child process to become session leader" );
-        exit( EXIT_FAILURE );
+        log_fatal( "Unable to set child process to become session leader" );
+        return EXIT_FAILURE;
     }
 
     /* Ignore signal sent from child to parent process */
     signal( SIGCHLD, SIG_IGN );
+    signal( SIGHUP, SIG_IGN );
 
     /*
      * This seems to be a tester to make sure the SIGCHLD is indeed ignored.
@@ -114,8 +135,8 @@ static void daemonize()
     /* Error forking occurred.. */
     if ( pid < 0 )
     {
-        write_to_log( (char *)"unable to fork the second time" );
-        exit( EXIT_FAILURE );
+        log_fatal( "Unable to fork the second time" );
+        return EXIT_FAILURE;
     }
 
     /* Though if successful, terminate the parent process. */
@@ -130,8 +151,8 @@ static void daemonize()
     /* Change the working directory to another dir */
     if ( (chdir( "/" )) < 0 )
     {
-        write_to_log( (char *)"unable to chdir to '/'" );
-        exit( EXIT_FAILURE );
+        log_fatal( "Unable to chdir to '/'" );
+        return EXIT_FAILURE;
     }
 
     /* Close file descriptors, then reopen them to '/dev/null' */
@@ -145,7 +166,6 @@ static void daemonize()
     stderr = fopen( "/dev/null", "w+" );
 
     /* Now to write PID of daemon to Lockfile, then done. */
-
     if ( PIDFILE != NULL )
     {
         char str[256];
@@ -154,15 +174,15 @@ static void daemonize()
         if ( pid_fd < 0 )
         {
             /* Cannot open lockfile. */
-            write_to_log( (char *)"unable to open lockfile" );
-            exit( EXIT_FAILURE );
+            log_fatal( "Unable to open lockfile" );
+            return EXIT_FAILURE;
         }
 
         if ( lockf(pid_fd, F_TLOCK, 0) < 0 )
         {
             /* Cannot lock lockfile. */
-            write_to_log( (char *)"unable to lock the lockfile" );
-            exit( EXIT_FAILURE );
+            log_fatal( "Unable to lock the lockfile" );
+            return EXIT_FAILURE;
         }
 
         /* Get the current PID */
@@ -171,14 +191,21 @@ static void daemonize()
         /* Write PID to Lockfile */
         write( pid_fd, str, strlen(str) );
     }
+
+    return 0;
 }
 
-/*
- * Function for main function in server.cpp to allow
- * running as a daemon.
+/**
+ * @brief Function to allow the program to run as a daemon.
  */
-void run_as_daemon()
+int run_as_daemon()
 {
-    daemonize();
-    isDaemon = 1;
+    int ret = daemonize();
+
+    if ( !ret )
+    {
+        isDaemon = 1;
+    }
+
+    return ret;
 }

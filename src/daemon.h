@@ -5,6 +5,6 @@
 
 void handle_signal( int sig );
 
-void run_as_daemon();
+int run_as_daemon();
 
 #endif

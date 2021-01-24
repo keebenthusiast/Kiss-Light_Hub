@@ -1,14 +1,14 @@
 SRC = src
-CC = g++
-CFLAGS = -g -Wall -fpermissive
+CC = gcc
+CFLAGS = -g -Wall
 LIBS = -lsqlite3 -pthread -lrt
 
 _DEPS = common.h daemon.h ini.h \
-INIReader.h log.h server.h
+log.h server.h main.h mqtt.h mqtt_pal.h
 DEPS = $(patsubst %,$(SRC)/%,$(_DEPS))
 
 _OBJ = common.o log.o server.o \
-daemon.o ini.o INIReader.o
+daemon.o ini.o main.o mqtt.o mqtt_pal.o
 OBJ = $(patsubst %,$(SRC)/%,$(_OBJ))
 
 all: kisslight
@@ -33,7 +33,8 @@ install: kisslight
 uninstall:
 	systemctl stop kisslight.service
 	systemctl disable kisslight.service
-	rm -f /etc/kisslight.ini /etc/systemd/system/kisslight.service /usr/bin/kisslight
+	rm -f /etc/kisslight.ini /etc/systemd/system/kisslight.service
+	rm -f /usr/bin/kisslight
 	rm -rf /var/lib/kisslight
 	systemctl daemon-reload
 

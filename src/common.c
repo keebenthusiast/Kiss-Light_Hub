@@ -1,8 +1,14 @@
 /*
- *  General and miscellaneous functions
- *  will reside here, for ease.
+ * General and miscellaneous functions
+ * will reside here, for ease.
  *
- *  Written by: Christian Kissinger
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (C) 2019-2021, Christian Kissinger
+ * kiss-light Hub is released under the New BSD license (see LICENSE).
+ * Go to the project repo here:
+ * https://gitlab.com/kiss-light-project/Kiss-Light_Hub
+ *
+ * Written by: Christian Kissinger
  */
 
 // system-related includes
@@ -39,23 +45,48 @@ static int *to_change;
 static pthread_mutex_t *lock;
 static sem_t *mutex;
 
-/* Some function declarations for future use */
+/* Some function prototypes for future use */
 static void reset_db_counter();
 static int check_device_type( const int in );
 static int get_digit_count( const int in );
+static int get_db_len();
+static int insert_db_entry( char *dev_name, char *mqtt_topic, const int type );
+static int dump_db_entries();
+static int update_db_entry( char *odev_name, char *ndev_name,
+                     char *omqtt_topic, char *nmqtt_topic,
+                     const int ndev_type );
+static int update_db_dev_state( char *dev_name, char *mqtt_topic,
+                         const int new_state );
+static int delete_db_entry( char *dev_name, char *mqtt_topic );
 
 /*******************************************************************************
  * Everything related to arg processing will reside here
  ******************************************************************************/
-void process_args( int argc, char **argv )
+
+/**
+ * TODO: This should be more fleshed out,
+ * maybe a student can help with this part.
+ *
+ * @brief Process arguments passed in (from main).
+ *
+ * @param argc passing in argc from main would be easiest.
+ * @param argv passing in argv from main would be easiest.
+ *
+ * @note returns 0 for success, 1 for error
+ */
+int process_args( int argc, char **argv )
 {
+    int daemon_successful = 0;
+
     if ( argc >= 2 )
     {
-        if (strncmp( argv[1], "daemon", 6) == 0 )
+        if ( strncmp( argv[1], "daemon", 7) == 0 )
         {
-            printf( "Not yet implemented\n" );
+            daemon_successful = run_as_daemon();
         }
     }
+
+    return daemon_successful;
 }
 
 
@@ -63,9 +94,19 @@ void process_args( int argc, char **argv )
  * Everything related to configuration will reside here.
  ******************************************************************************/
 
-/* a hanlder function for analyzing configurations */
-static int handler(void* user, const char* section, const char* name,
-                   const char* value)
+/**
+ * @brief a callback hanlder function for analyzing configuration settings.
+ *
+ * @param user the struct for configuration usage.
+ * @param section the section of a ini file.
+ * @param name the name of the section file.
+ * @param value the string/value of interest.
+ *
+ * @note refer to the ini.c and ini.h for more information
+ * and implementation on how it works
+ */
+static int ini_callback_handler( void* user, const char* section,
+                                 const char* name, const char* value )
 {
     config *pconfig = (config *)user;
 
@@ -128,13 +169,22 @@ static int handler(void* user, const char* section, const char* name,
     return 1;
 }
 
-/* Initialize configuration variable, to ini file */
+/**
+ * @brief Initialize configuration variable, to ini file.
+ *
+ * @param cfg the config struct where configuration will be stored.
+ *
+ * @note check the return value and handle accordingly.
+ *
+ * returns 1 for any error that may occur,
+ * returns 0 otherwise.
+ */
 int initialize_conf_parser( config *cfg )
 {
     /* create an accessible pointer for the rest of the program if needed */
     conf = cfg;
 
-    if ( ini_parse( CONFLOCATION, handler, cfg) < 0 )
+    if ( ini_parse( CONFLOCATION, ini_callback_handler, cfg) < 0 )
     {
         fprintf( stderr, "Cannot load config file '%s'\n", CONFLOCATION );
         return 1;
@@ -147,8 +197,16 @@ int initialize_conf_parser( config *cfg )
  * Everything related to database manipulation will reside here.
  ******************************************************************************/
 
-/*
- * Initialize everything for database usage.
+/**
+ * @brief Initialize everything for database thread usage.
+ *
+ * @param sql_buffer the buffer meant for sql statements.
+ * @param dat the struct array for items in database.
+ * @param to_chng the int array to indicate what may or may need to be changed.
+ * @param lck the pthread mutex to prevent any race conditions.
+ * @param mtx the semaphore mutex to also prevent any race conditions.
+ *
+ * @note
  * Returns 1 when an SQL error occurs,
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
@@ -200,8 +258,13 @@ int initialize_db( char *sql_buffer, db_data *dat, int *to_chng,
 
 }
 
-/* Function to verify device type, or
- * return -1 if invalid.
+/**
+ * @brief Function to verify device type.
+ *
+ * @param in the unknown device ID to be passed in.
+ *
+ * @note return -1 if invalid,
+ * proper device id otherwise.
  */
 static int check_device_type( const int in )
 {
@@ -220,9 +283,12 @@ static int check_device_type( const int in )
     return rv;
 }
 
-/*
- * get the digit count for a particular
- * integer, returns the length.
+/**
+ * @brief get the digit count for a particular integer.
+ *
+ * @param in the integer of interest.
+ *
+ * @note returns digit count.
  */
 static int get_digit_count( const int in )
 {
@@ -246,7 +312,16 @@ static int get_digit_count( const int in )
     return count;
 }
 
-/* callback function for database access */
+/**
+ * @brief callback function for database access.
+ *
+ * @param data Not actually used.
+ * @param argc the amount of columns.
+ * @param argv the content in the column.
+ * @param azColName the column names.
+ *
+ * @note refer to sqlite3 documentation for more information.
+ */
 static int db_callback( void *data, int argc, char **argv, char **azColName )
 {
     for ( int i = 0; i < argc; i++ )
@@ -292,8 +367,12 @@ static int db_callback( void *data, int argc, char **argv, char **azColName )
     return 0;
 }
 
-/*
- * Read from Database file.
+/**
+ * @brief Handles the actual database query execution.
+ *
+ * @param query The desired SQL query as a char buffer.
+ *
+ * @note
  * Returns 1 when an SQL error occurs,
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
@@ -338,19 +417,20 @@ static int execute_db_query( char *query )
     return rv;
 }
 
-/*
- * A simple way to reset the global counter after an operation is complete
+/**
+ * @brief A simple way to reset the global counter after an operation
+ * is complete.
  */
 static void reset_db_counter()
 {
     db_counter = 0;
 }
 
-/*
- * a way for other functions to get the entry length ahead of time.
+/**
+ * @brief a way for other functions to get the entry length ahead of time.
  * And this simplifies it for the programmer a bit.
  *
- * Note from Christian: I am aware that this does break consistency
+ * @note note from Christian: I am aware that this does break consistency
  * with other functions, but since a length of 0 is possible,
  * that is my reasoning for returning either a -1 or -2 for any errors.
  *
@@ -358,7 +438,7 @@ static void reset_db_counter()
  * Returns -2 when unable to open db file,
  * Returns actual length otherwise.
  */
-int get_db_len()
+static int get_db_len()
 {
     strncpy( sql_buf, "SELECT COUNT(*) FROM device;", 29);
 
@@ -392,16 +472,18 @@ int get_db_len()
  * @brief The insert function, it inserts a new entry.
  *
  * Currently:
- * @param dev_name is for the device name
- * @param mqtt_topic is for the mqtt topic (may or may not differ from dev_name)
- * @param type is for device type, for now only 0 is accepted.
+ * @param dev_name is for the device name.
+ * @param mqtt_topic is for the mqtt topic
+ * (may or may not differ from dev_name)
+ * @param type is for device type.
  *
- * @note Returns 2 when a user error occurs,
+ * @note refer to check_device_type() for valid device type.
+ *
  * Returns 1 when an SQL error occurs,
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
  */
-int insert_db_entry( char *dev_name, char *mqtt_topic, const int type )
+static int insert_db_entry( char *dev_name, char *mqtt_topic, const int type )
 {
     /* prepare insert statement */
     /* determine type digit count */
@@ -423,7 +505,7 @@ int insert_db_entry( char *dev_name, char *mqtt_topic, const int type )
 
     /* put it all together */
     /* dev_state is currently unknown so -1 */
-    int n = snprintf( sql_buf, (43 + strlen(dev_name) +
+    snprintf( sql_buf, (43 + strlen(dev_name) +
     strlen(mqtt_topic) + count),
     "INSERT INTO device VALUES( '%s', '%s', %d, -1 );",
     dev_name, mqtt_topic, type );
@@ -447,16 +529,16 @@ int insert_db_entry( char *dev_name, char *mqtt_topic, const int type )
     return db_ret;
 }
 
-/*
- * A specialized select function
+/**
+ * @brief A specialized select function
  * which has the primary function of dumping
  * existing entries.
  *
- * Returns 1 when an SQL error occurs,
+ * @note Returns 1 when an SQL error occurs,
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
  */
-int dump_db_entries()
+static int dump_db_entries()
 {
     strncpy( sql_buf, "SELECT dev_name, mqtt_topic, dev_type," \
             " dev_state FROM device;",
@@ -483,20 +565,25 @@ int dump_db_entries()
     return db_ret;
 }
 
-/*
- * This is the function to update entries.
+/**
+ * @brief This is the function to update entries.
  *
- * As far as I (Christian) can tell, it looks
+ * @param odev_name old dev_name.
+ * @param ndev_name new dev_name.
+ * @param omqtt_topic old mqtt_topic.
+ * @param nmqtt_topic new mqtt_topic.
+ * @param ndev_type new dev_type.
+ *
+ * @note As far as I (Christian) can tell, it looks
  * like the preliminary checks for ambiguous
  * criteria, like odev_name is NULL but
  * ndev_name for some reason is not.
  *
- * Returns 2 when a user error occurs,
  * Returns 1 when an SQL error occurs,
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
  */
-int update_db_entry( char *odev_name, char *ndev_name,
+static int update_db_entry( char *odev_name, char *ndev_name,
                      char *omqtt_topic, char *nmqtt_topic,
                      const int ndev_type )
 {
@@ -671,14 +758,22 @@ int update_db_entry( char *odev_name, char *ndev_name,
 }
 
 
-/*
- * This has the job of updating a dev_state
+/**
+ * @brief This has the job of updating a dev_state
  * given dev_name, mqtt_topic, or both.
  *
- * a quirk here could be the state can be set to some unkown state,
+ * @param dev_name the device name of the device that changed states.
+ * @param mqtt_topic the mqtt topic of the device that changed states.
+ * @param new_state the new state value.
+ *
+ * @note Returns 1 when an SQL error occurs,
+ * Returns -1 when unable to open db file,
+ * Returns 0 otherwise.
+ *
+ * @todo a quirk here could be the state can be set to some unkown state,
  * but it could be useful for if/when RGB bulbs get implemented..
  */
-int update_db_dev_state( char *dev_name, char *mqtt_topic,
+static int update_db_dev_state( char *dev_name, char *mqtt_topic,
                          const int new_state )
 {
     int n = -1;
@@ -742,18 +837,20 @@ int update_db_dev_state( char *dev_name, char *mqtt_topic,
     return db_ret;
 }
 
-/*
- * This is the way to remove entries.
+/**
+ * @brief This is the way to remove entries.
  *
- * Beware that if mqtt_topic is passed in
- * it can potentially remove multiple
- * entries.
+ * @param dev_name the device name to be removed.
+ * @param mqtt_topic the mqtt_topic of device to be removed.
+ *
+ * @note Beware that if mqtt_topic is passed in without dev_name also
+ * passed in can potentially remove multiple entries.
  *
  * Returns 1 when an SQL error occurs,
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
  */
-int delete_db_entry( char *dev_name, char *mqtt_topic )
+static int delete_db_entry( char *dev_name, char *mqtt_topic )
 {
     int n = -1;
 
@@ -964,15 +1061,17 @@ void *db_updater( void* args )
                                    " Error" );
 
                     }
+                    else
+                    {
+                        /* reset for later use */
+                        memset( memory[i].dev_name, 0, DB_DATA_LEN );
+                        memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
+                        memory[i].dev_type = -1;
+                        memory[i].dev_state = -1;
 
-                    /* reset for later use */
-                    memset( memory[i].dev_name, 0, DB_DATA_LEN );
-                    memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
-                    memory[i].dev_type = -1;
-                    memory[i].dev_state = -1;
-
-                    memset( memory[i].odev_name, 0, DB_DATA_LEN );
-                    memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+                        memset( memory[i].odev_name, 0, DB_DATA_LEN );
+                        memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+                    }
 
                     break;
                 }
