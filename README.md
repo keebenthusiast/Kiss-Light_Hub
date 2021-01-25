@@ -43,7 +43,7 @@ And the program should be up and running after the sudo make install step.
 
 It should be noted that numbers here are in decimal, unless otherwise specified.
 
-It is assumed that mosquitto has been setup prior, for now without TLS but TLS will eventually get implemented. and it will be assumed that
+It is assumed that mosquitto has been setup prior, for now without TLS but TLS may eventually get implemented. and it will be assumed that
 port ```1883``` is used for mosquitto.
 
 It is also assumed that a device in use is sporting the tasmota or some other open source firmware to allow the use of mqtt, and that the device
