@@ -18,12 +18,31 @@
 #include "common.h"
 #include "mqtt.h"
 
+
+/* Constants */
+#define FULL_MESSAGE ((const char *)"KL/0.3 505 client capacity full, " \
+                      "try again later.\n")
+
+enum {
+    // should be at least 6
+    POLL_SIZE = 11,
+    LISTEN_QUEUE = 10,
+    ARG_LEN = 5,
+    ARG_BUF_LEN = 512,
+
+    // in seconds
+    KEEP_ALIVE = 400,
+
+    // for when there are too many clients
+    FULL_MESSAGE_LEN = 51
+};
+
 /*******************************************************************************
  * Non-specific server-related initializations will reside here.
  * such as: sharing pointers to some buffers
  ******************************************************************************/
 
-void assign_buffers( uint8_t **srvr_buf, uint8_t **str_buf,
+void assign_buffers( char **srvr_buf, char **str_buf,
                      char *tpc, char *application_msg,
                      db_data *data, config *cfg, int *to_chng,
                      pthread_mutex_t *lck, sem_t *mtx );
@@ -33,6 +52,9 @@ void assign_buffers( uint8_t **srvr_buf, uint8_t **str_buf,
  ******************************************************************************/
 /* A way to create a socket for the kisslight server. */
 int create_server_socket( const int port );
+
+/* server's loop */
+int server_loop( int listenfd );
 
 /* a way to cleanly exit */
 void close_socket();
@@ -51,16 +73,5 @@ void publish_kl_callback(void** client,
                          struct mqtt_response_publish *published);
 
 void* client_refresher(void* client);
-
-enum {
-   // should be at least 3
-    POLL_SIZE = 12,
-    LISTEN_QUEUE = 10,
-    ARG_LEN = 4,
-    ARG_BUF_LEN = 512,
-
-    // in seconds
-    KEEP_ALIVE = 400
-};
 
 #endif

@@ -2,7 +2,6 @@
 #define COMMON_H_
 
 #define CONFLOCATION ((const char *)"/etc/kisslight.ini")
-#define MAX_DEVICES 50
 #define KL_VERSION 0.3
 
 /* Includes in case the compiler complains */
@@ -71,6 +70,8 @@ typedef struct
 
 int initialize_db( char *sql_buffer, db_data *dat, int *to_chng,
                    pthread_mutex_t *lck, sem_t *mtx );
+
+const int get_current_entry_count();
 
 void *db_updater( void* args );
 

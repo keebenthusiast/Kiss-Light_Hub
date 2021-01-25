@@ -46,12 +46,15 @@ static db_data *memory;
 static int *to_change;
 
 // pointers for various server buffers
-static uint8_t **server_buffer;
-static uint8_t **str_buffer;
+static char **server_buffer;
+static char **str_buffer;
 
 // mqtt buffers
 static char *topic;
 static char *app_msg;
+
+// mqtt client pointer
+ struct mqtt_client *cl;
 
 // System pointers
 static pthread_mutex_t *lock;
@@ -63,12 +66,28 @@ static sem_t *mutex;
  */
 static unsigned int closeSocket = 0;
 
+/* Local prototypes as needed */
+
 /*******************************************************************************
  * Non-specific server-related initializations will reside here.
  * such as: sharing pointers to some buffers
  ******************************************************************************/
 
-void assign_buffers( uint8_t **srvr_buf, uint8_t **str_buf,
+/**
+ * @brief assign buffers and mutex semaphores to the server.
+ *
+ * @param srvr_buf The server's buffer.
+ * @param str_buf The parser's buffer.
+ * @param tpc the topic buffer.
+ * @param application_msg the application message buffer.
+ * @param data the struct array of database entries.
+ * @param cfg the configuration struct
+ * @param to_chng the int array to indicate what is to be updated
+ * @param lck the pthread mutex lock
+ * @param mtx the semaphore mutex lock
+ *
+ */
+void assign_buffers( char **srvr_buf, char **str_buf,
                      char *tpc, char *application_msg,
                      db_data *data, config *cfg, int *to_chng,
                      pthread_mutex_t *lck, sem_t *mtx )
@@ -87,6 +106,17 @@ void assign_buffers( uint8_t **srvr_buf, uint8_t **str_buf,
 /*******************************************************************************
  * Everything related to message parsing will reside here.
  ******************************************************************************/
+
+/**
+ * @brief clean str_buffer for later use.
+ */
+static void clean_str_buffers()
+{
+    for ( int i = 0; i < ARG_LEN; i++ )
+    {
+        memset( str_buffer[i], 0, ARG_BUF_LEN );
+    }
+}
 
 /**
  * @brief Check protocol version.
@@ -146,13 +176,109 @@ static float get_protocol_version(char *buf)
  * @param n the buffer length, modified when buf is modified.
  *
  * @note returns -1 to exit,
- * returns 0 for all is good,
- * returns 1 to enter sniff mode,
+ * returns 0 for all is good.
  */
-int parse_server_input(char *buf, int *n)
+int parse_server_request(char *buf, int *n)
 {
-    // not yet implemented
-    return 1;
+    int rv = 0; /* the return value */
+
+    /* process up to 5 arguments passed in */
+    sscanf( buf, "%s %s %s %s %s", str_buffer[0], str_buffer[1],
+            str_buffer[2], str_buffer[3], str_buffer[4] );
+
+    /* clean buffer for reuse */
+    memset( buf, 0, conf->buffer_size );
+
+    /* Use below for features not yet implemented! */
+    //*n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
+    //               KL_VERSION );
+
+    // TRANSMIT custom_topic custom_message KL/version#
+    if ( strncasecmp(str_buffer[0], "TRANSMIT", 9) == 0 )
+    {
+        if( get_protocol_version(str_buffer[3]) < 0.1 )
+        {
+            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+                           KL_VERSION );
+
+            clean_str_buffers();
+
+            return rv;
+        }
+
+        mqtt_publish( cl, str_buffer[1], str_buffer[2],
+                      strlen(str_buffer[2]), MQTT_PUBLISH_QOS_0 );
+
+        if ( cl->error != MQTT_OK )
+        {
+            log_warn( "mqtt error: %s", mqtt_error_str(cl->error) );
+            *n = snprintf( buf, (29 + strlen(mqtt_error_str(cl->error))),
+                           "KL/%.1f 500 Internal Error: %s\n", KL_VERSION,
+                           mqtt_error_str(cl->error) );
+        }
+        else
+        {
+            *n = snprintf( buf, (36 + strlen(str_buffer[1]) +
+                           strlen(str_buffer[2])),
+                           "KL/%.1f 200 Custom Command '%s %s' Sent\n",
+                           KL_VERSION, str_buffer[1], str_buffer[2] );
+        }
+    }
+    // ADD dev_name mqtt_topic dev_type KL/version#
+    else if ( strncasecmp(str_buffer[0], "ADD", 4) == 0 )
+    {
+        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
+                       KL_VERSION );
+    }
+    // TOGGLE dev_name KL/version#
+    else if ( strncasecmp(str_buffer[0], "TOGGLE", 7) == 0 )
+    {
+        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
+                       KL_VERSION );
+    }
+    // SET dev_name [ON,1|OFF,0] KL/version#
+    else if ( strncasecmp(str_buffer[0], "SET", 4) == 0 )
+    {
+        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
+                       KL_VERSION );
+    }
+    // LIST KL/version#
+    else if ( strncasecmp(str_buffer[0], "LIST", 5) == 0 )
+    {
+        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
+                       KL_VERSION );
+    }
+    // DELETE dev_name KL/version#
+    else if ( strncasecmp(str_buffer[0], "DELETE", 7) == 0 )
+    {
+        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
+                       KL_VERSION );
+    }
+    // STATUS dev_name KL/version#
+    else if ( strncasecmp(str_buffer[0], "STATUS", 7) == 0 )
+    {
+        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
+                       KL_VERSION );
+    }
+    // allow the client to disconnect
+    else if ( strncasecmp(str_buffer[0], "Q", 2) == 0
+           || strncasecmp(str_buffer[0], "QUIT", 5) == 0 )
+    {
+        *n = snprintf( buf, 20, "KL/%.1f 200 Goodbye\n", KL_VERSION );
+
+        /* tell the connection handler to let the client exit */
+        rv = -1;
+    }
+    // Something else was passed in
+    else
+    {
+        *n = snprintf( buf, 24, "KL/%.1f 400 Bad Request\n", KL_VERSION );
+    }
+
+    /* Clean str buffers */
+    clean_str_buffers();
+
+    return rv;
 }
 
 /*******************************************************************************
@@ -203,6 +329,198 @@ int create_server_socket( const int port )
 
     /* Return the completed process. */
     return fd;
+}
+
+/**
+ * @brief the server's connection handler
+ *
+ * @param connfds the pollfd array of clients.
+ * @param num the count of clients in the pollfd array.
+ *
+ */
+static void server_connection_handler( struct pollfd *connfds, int num )
+{
+    int count; /* To handle connections */
+    int n = 0; /* get the length of read() and write() functions */
+    int response_len = 0; /* the server's response length to client */
+    int status = 0; /* Status according to what server client wants */
+
+    for ( count = 1; count <= num; count++ )
+    {
+        /* No connection, move on */
+        if ( connfds[count].fd < 0 )
+        {
+            continue;
+        }
+
+        if ( connfds[count].revents & POLLIN )
+        {
+            /* Retreive request from client */
+            n = read( connfds[count].fd, server_buffer[count - 1],
+                      conf->buffer_size );
+
+            /* client must have disconnected, move on */
+            /* set equal to 0 if bugs come up! */
+            if ( n <= 0 )
+            {
+                close( connfds[count].fd );
+                connfds[count].fd = -1;
+                continue;
+            }
+
+            /* Parse incoming request */
+            status = parse_server_request( server_buffer[count - 1],
+                                           &response_len );
+
+            /* Write response to client */
+            n = write( connfds[count].fd, server_buffer[count - 1],
+                       response_len );
+
+            /* Handle exit if client wants to exit */
+            if ( status < 0 )
+            {
+                close( connfds[count].fd );
+                connfds[count].fd = -1;
+                continue;
+            }
+        }
+    }
+}
+
+/**
+ * @brief the server's network loop
+ *
+ * @param listenfd the socket created using
+ * the function create_server_socket(port)
+ *
+ * @note Returns 1 for any errors that
+ * may arise, returns 0 otherwise.
+ */
+int server_loop( int listenfd )
+{
+    int rv = 0; /* return value, assume all is well */
+    int connfd; /* the client's fd if one is accepted */
+    int maxi = 0;
+    int nready;
+    int count;
+    struct sockaddr_in cli_addr;
+    socklen_t cli_addr_len = sizeof(cli_addr);
+
+    /**
+     * @todo ... maybe?
+     * This may have to be malloc'd at some point, we'll
+     * have to wait and see
+     */
+    struct pollfd clientfds[POLL_SIZE];
+
+    /* first client is the server itself. */
+    clientfds[0].fd = listenfd;
+    clientfds[0].events = POLLIN;
+
+    /* Initialize all other clients. */
+    for ( int i = 1; i < POLL_SIZE; i++ )
+    {
+        clientfds[i].fd = -1;
+    }
+
+    /* run forever! */
+    for ( ;; )
+    {
+        /* Wait for file descriptor to be ready in 50ms */
+        nready = poll( clientfds, maxi+1, 50 );
+
+        if ( nready < 0 )
+        {
+            log_error( "Error polling in server" );
+            rv = 1;
+            break;
+        }
+
+        if ( clientfds[0].revents & POLLIN )
+        {
+            /* Accept some clients! */
+            if ( (connfd = accept(listenfd, (struct sockaddr*)&cli_addr,
+                                  &cli_addr_len)) < 0 )
+            {
+                /*
+                 * Handle potential interrupt beyond our control,
+                 * and just start over again.
+                 */
+                if ( errno == EINTR )
+                {
+                    log_info( "Got interrupted with EINTR, continuing." );
+                    continue;
+                }
+                else
+                {
+                    log_error( "Error Accepting client in server" );
+                    rv = 1;
+                    break;
+                }
+            }
+
+            log_info( "Accepted new client %s:%d",
+                      inet_ntoa(cli_addr.sin_addr),
+                      cli_addr.sin_port );
+
+            /* Add the client to next available clientfds slot. */
+            for ( count = 1; count < POLL_SIZE; count++ )
+            {
+                if ( clientfds[count].fd < 0 )
+                {
+                    clientfds[count].fd = connfd;
+                    break;
+                }
+
+                /*
+                 * Made it this far into the loop,
+                 * increment count, there are too many clients.
+                 * Handle accordingly.
+                 */
+                if ( count == (POLL_SIZE - 1) )
+                {
+                    count++;
+                }
+            }
+
+            /*
+             * If there are too many clients, tell the
+             * interested party that there are too many
+             * clients right now.
+             */
+            if ( count >= POLL_SIZE )
+            {
+                log_warn( "Too many clients reached!" );
+                write( connfd, FULL_MESSAGE, FULL_MESSAGE_LEN );
+                close( connfd );
+            }
+
+            /* Set the clientfds as poll input. */
+            clientfds[count].events = POLLIN;
+
+            /* set or reset maxi if count is greater than it. */
+            maxi = ( count > maxi ? count : maxi );
+
+            if ( --nready <= 0 )
+            {
+                continue;
+            }
+        }
+
+        /* handle the connection */
+        server_connection_handler( clientfds, maxi );
+
+        /* If it's exit time, exit cleanly */
+        if ( closeSocket > 0 )
+        {
+            rv = 0;
+            close( clientfds[0].fd );
+            clientfds[0].fd = -1;
+            break;
+        }
+    }
+
+    return rv;
 }
 
 /* ability to close the socket */
@@ -312,6 +630,8 @@ int initialize_mqtt( struct mqtt_client *client, int *sockfd,
         return 1;
     }
 
+    cl = client;
+
     return 0;
 }
 
@@ -382,7 +702,7 @@ void publish_kl_callback( void** client,
             /*
              * THIS MAY NEED TO BE REVISED
              * TO SUPPORT RGB LIGHTS... IF
-             * I DECIDE TO SUPPORT THOSE.
+             * I (Christian) DECIDE TO SUPPORT THOSE.
              */
             log_warn( "Detected something different from topic %s : %s",
                       topic, app_msg );

@@ -26,6 +26,7 @@
 // local includes
 #include "main.h"
 #include "common.h"
+#include "daemon.h"
 #include "server.h"
 #include "mqtt.h"
 #include "log.h"
@@ -37,8 +38,8 @@
 typedef struct
 {
     // Server buffers
-    uint8_t **server_buffer;
-    uint8_t **str_buffer;
+    char **server_buffer;
+    char **str_buffer;
 
     // SQL buffers
     char *sql_buffer;
@@ -68,7 +69,7 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
     log_trace( "allocating buffers" );
     log_debug( "allocating server buffers" );
 
-    bfrs->server_buffer = malloc( (POLL_SIZE - 2) * sizeof(char *) );
+    bfrs->server_buffer = malloc( (POLL_SIZE - 1) * sizeof(char *) );
     bfrs->str_buffer = malloc( ARG_LEN * sizeof(char *) );
     bfrs->changes = (int *)malloc( cfg->max_dev_count * sizeof(int) );
 
@@ -77,16 +78,17 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
     {
         if ( i < ARG_LEN )
         {
-            bfrs->str_buffer[i] = (uint8_t *)malloc(
-                ARG_BUF_LEN * sizeof(uint8_t)
+            bfrs->str_buffer[i] = (char *)malloc(
+                ARG_BUF_LEN * sizeof(char)
             );
             memset( bfrs->str_buffer[i], 0, ARG_BUF_LEN );
         }
 
-        if ( i < (POLL_SIZE - 2) )
+        if ( i < (POLL_SIZE - 1) )
         {
-            bfrs->server_buffer[i] =
-            (uint8_t *)malloc( cfg->buffer_size * sizeof(uint8_t) );
+            bfrs->server_buffer[i] = (char *)malloc(
+                cfg->buffer_size * sizeof(char)
+            );
             memset( bfrs->server_buffer[i], 0, cfg->buffer_size );
         }
 
@@ -164,7 +166,7 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
 
     log_debug( "freeing buffers" );
     /* Now to free the memory allocated by buffers */
-    for ( int i = 0; i < (POLL_SIZE - 2); i++ )
+    for ( int i = 0; i < (POLL_SIZE - 1); i++ )
     {
         if ( i < ARG_LEN )
         {
@@ -227,7 +229,9 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
  */
 int main( int argc, char **argv )
 {
-    /* Initialize logger */
+    /*
+     * Step 1: Initialize logger
+     */
     FILE *lg = fopen( LOGLOCATION, "w" );
 
     if ( lg == NULL )
@@ -239,7 +243,9 @@ int main( int argc, char **argv )
     log_add_fp(lg, DEBUG_LEVEL);
     log_trace( "Kiss-Light Logger initialized");
 
-    /* Initialize configuration parser */
+    /*
+     * Step 2: Initialize configuration parser
+     */
     config *cfg = (config *)malloc( sizeof(config) );
 
     if ( initialize_conf_parser(cfg) != 0 )
@@ -249,13 +255,15 @@ int main( int argc, char **argv )
     }
     log_trace( "Configuration parser initialized" );
 
-    /* Analyze command line args (should override config if specified to) */
+    /* Step 3: Analyze command line args
+     * (should override config if specified to)
+     */
     /* This is also where running as a daemon would be specified */
     int arg_result = process_args( argc, argv );
 
     if ( arg_result )
     {
-        log_debug( "Failed to daemonize, exiting..." );
+        log_debug( "Failed to process arg, exiting..." );
 
         /* Clean up as this is a big deal. */
         if ( cfg->db_loc != NULL )
@@ -278,12 +286,19 @@ int main( int argc, char **argv )
     }
     log_trace( "args processed" );
 
-    /* Allocate Buffers for server, mqtt functions, sqlite functions */
+    /* Handle signals as needed */
+    signal( SIGINT, handle_signal );
+
+    /*
+     * Step 4: Allocate Buffers for server, mqtt functions, sqlite functions
+     */
     buffers *bfrs = (buffers *)malloc( sizeof(buffers) );
     db_data *memory = (db_data *)malloc( cfg->max_dev_count * sizeof(db_data) );
     allocate_buffers( bfrs, cfg, memory );
 
-    /* Initialize mutex semaphores, share info to server part of code */
+    /*
+     * Step 5: Initialize mutex semaphores, share info to server part of code
+     */
     log_trace( "Initializing semaphores and copying data to server code" );
     pthread_mutex_t lock;
     sem_t mutex;
@@ -294,7 +309,9 @@ int main( int argc, char **argv )
                     cfg, bfrs->changes, &lock, &mutex );
     log_trace( "semaphores initialized" );
 
-    /* Initialize sqlite functions */
+    /*
+     * Step 6: Initialize sqlite functions
+     */
     log_trace( "Initialize sqlite and fill up RAM" );
     int status = initialize_db( bfrs->sql_buffer, memory, bfrs->changes,
                                 &lock, &mutex );
@@ -312,7 +329,9 @@ int main( int argc, char **argv )
         return 1;
     }
 
-    /* Initialize mqtt listener */
+    /*
+     * Step 7: Initialize mqtt listener
+     */
     char port_str[10];
     sprintf( port_str, "%d", cfg->mqtt_port );
     int sockfd_mqtt = open_nb_socket( cfg->mqtt_server, port_str );
@@ -350,10 +369,65 @@ int main( int argc, char **argv )
      *
      * TODO: TO BE IMPLEMENTED
      */
-    //for ( int i = 0; i < cfg->max_dev_count; i++ )
-    //
+    int count = 0;
+    for ( int i = 0; i < cfg->max_dev_count; i++ )
+    {
+        /* If all entries are in, break out of loop */
+        if ( count == get_current_entry_count() )
+        {
+            break;
+        }
 
-    /* Finally, initialize the kisslight server itself */
+        mqtt_subscribe( client, memory[i].stat_topic, 0 );
+
+        log_info( "subscribed to %s", memory[i].stat_topic );
+
+        count++;
+    }
+
+    /*
+     * Step 8: Create mqtt client and database updater threads
+     */
+
+    /* Establish pthread for daemon */
+    pthread_t mqtt_client_thr;
+    if( pthread_create(&mqtt_client_thr, NULL, client_refresher, client) )
+    {
+        log_error( "Failed to start mqtt client daemon, exiting..." );
+
+        if (sockfd_mqtt != -1 )
+        {
+            close( sockfd_mqtt );
+        }
+
+        /* Cleanup and exit, this is a big deal. */
+        cleanup( lg, bfrs, cfg, memory, client );
+        return 1;
+    }
+
+    /* Establish pthread for database updater */
+    pthread_t database_thr;
+    if ( pthread_create(&database_thr, NULL, db_updater, NULL) )
+    {
+        log_error( "Failed to start db updater, exiting..." );
+
+        /* Kill this thread as it will no longer be required */
+        pthread_cancel(mqtt_client_thr);
+        pthread_join(mqtt_client_thr, NULL);
+
+        if (sockfd_mqtt != -1 )
+        {
+            close( sockfd_mqtt );
+        }
+
+        /* Cleanup and exit, this is a big deal. */
+        cleanup( lg, bfrs, cfg, memory, client );
+        return 1;
+    }
+
+    /*
+     * Step 9: Finally, initialize the kisslight server itself
+     */
     int sockfd = create_server_socket( cfg->port );
 
     /*
@@ -364,66 +438,52 @@ int main( int argc, char **argv )
     {
         log_trace( "server socket established" );
 
-        /*
-         * TO BE REMOVED!!!
-         */
-        /* Establish pthread for daemon */
-        pthread_t client_daemon;
-        if( pthread_create(&client_daemon, NULL, client_refresher, client) )
-        {
-            log_error( "Failed to start mqtt client daemon, exiting..." );
-
-            if (sockfd_mqtt != -1 )
-            {
-                close( sockfd_mqtt );
-                /* Cleanup and exit, this is a big deal. */
-                cleanup( lg, bfrs, cfg, memory, client );
-                return 1;
-            }
-        }
-
-        pthread_t database;
-        if ( pthread_create(&database, NULL, db_updater, NULL) )
-        {
-            log_error( "Failed to start db updater, exiting..." );
-
-            if (sockfd_mqtt != -1 )
-            {
-                close( sockfd_mqtt );
-                /* Cleanup and exit, this is a big deal. */
-                cleanup( lg, bfrs, cfg, memory, client );
-                return 1;
-            }
-        }
-
-        mqtt_subscribe( client, "stat/tasmota/POWER", 0 );
-
         /* start publishing the time */
-        printf( "listening for 'stat/tasmota/POWER' messages.\n" );
-        printf( "Press CTRL-D to exit.\n\n" );
+        //printf( "listening for 'stat/tasmota/POWER' messages.\n" );
+        //printf( "Press CTRL-D to exit.\n\n" );
 
         /* block */
-        while(fgetc(stdin) != EOF);
+        //while(fgetc(stdin) != EOF);
 
         /* disconnect */
-        printf( "\ndisconnecting\n" );
-
-
-        pthread_cancel(client_daemon);
-        pthread_cancel(database);
-        pthread_join(client_daemon, NULL);
-        pthread_join(database, NULL);
+        //printf( "\ndisconnecting\n" );
 
         /*
          * Time to Poll and run the server's network loop.
          */
+        if ( listen( sockfd, LISTEN_QUEUE ) < 0 )
+        {
+            log_error( "Error listening" );
+
+            pthread_cancel(mqtt_client_thr);
+            pthread_cancel(database_thr);
+            pthread_join(mqtt_client_thr, NULL);
+            pthread_join(database_thr, NULL);
+
+            cleanup( lg, bfrs, cfg, memory, client );
+
+            return 1;
+        }
+
+        log_trace( "Going into loop" );
+        server_loop( sockfd );
 
         log_trace( "server exiting" );
+
+        pthread_cancel(mqtt_client_thr);
+        pthread_cancel(database_thr);
+        pthread_join(mqtt_client_thr, NULL);
+        pthread_join(database_thr, NULL);
     }
     else
     {
         perror("Error creating sockfd");
         log_error( "Error creating sockfd" );
+
+        pthread_cancel(mqtt_client_thr);
+        pthread_cancel(database_thr);
+        pthread_join(mqtt_client_thr, NULL);
+        pthread_join(database_thr, NULL);
 
         /* Cleanup and exit, this is a big deal. */
         cleanup( lg, bfrs, cfg, memory, client );

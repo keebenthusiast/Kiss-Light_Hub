@@ -76,17 +76,17 @@ static int delete_db_entry( char *dev_name, char *mqtt_topic );
  */
 int process_args( int argc, char **argv )
 {
-    int daemon_successful = 0;
+    int rv = 0;
 
     if ( argc >= 2 )
     {
         if ( strncmp( argv[1], "daemon", 7) == 0 )
         {
-            daemon_successful = run_as_daemon();
+            rv = run_as_daemon();
         }
     }
 
-    return daemon_successful;
+    return rv;
 }
 
 
@@ -256,6 +256,17 @@ int initialize_db( char *sql_buffer, db_data *dat, int *to_chng,
 
     return 0;
 
+}
+
+/**
+ * @brief Function to get current entry count
+ *
+ * @note this differs from get_db_len(), this function
+ * just returns the count at that particular period in time.
+ */
+const int get_current_entry_count()
+{
+    return db_len;
 }
 
 /**
@@ -627,13 +638,11 @@ static int update_db_entry( char *odev_name, char *ndev_name,
         return 2;
     }
 
-    int n = -1;
-
     // Update just dev_name
     if ( (omqtt_topic == NULL && nmqtt_topic == NULL)
       && (verified_ndev_type == -1) )
     {
-        n = snprintf( sql_buf, (49 + strlen(odev_name) + strlen(ndev_name)),
+        snprintf( sql_buf, (49 + strlen(odev_name) + strlen(ndev_name)),
         "UPDATE device SET dev_name='%s' WHERE dev_name='%s';",
         ndev_name, odev_name );
     }
@@ -641,7 +650,7 @@ static int update_db_entry( char *odev_name, char *ndev_name,
     else if ( (odev_name == NULL && ndev_name == NULL)
            && (verified_ndev_type == -1) )
     {
-        n = snprintf( sql_buf, (53 + strlen(omqtt_topic) +
+        snprintf( sql_buf, (53 + strlen(omqtt_topic) +
         strlen(nmqtt_topic)),
         "UPDATE device SET mqtt_topic='%s' WHERE mqtt_topic='%s';",
         nmqtt_topic, omqtt_topic );
@@ -651,7 +660,7 @@ static int update_db_entry( char *odev_name, char *ndev_name,
            && (omqtt_topic == NULL)
            && (verified_ndev_type != -1) )
     {
-        n = snprintf( sql_buf, (47 + strlen(odev_name) +
+        snprintf( sql_buf, (47 + strlen(odev_name) +
         get_digit_count(ndev_type)),
         "UPDATE device SET dev_type=%d WHERE dev_name='%s';",
         ndev_type, odev_name );
@@ -661,7 +670,7 @@ static int update_db_entry( char *odev_name, char *ndev_name,
            && (omqtt_topic != NULL)
            && (verified_ndev_type != -1) )
     {
-        n = snprintf( sql_buf, (49 + strlen(omqtt_topic) +
+        snprintf( sql_buf, (49 + strlen(omqtt_topic) +
         get_digit_count(ndev_type)),
         "UPDATE device SET dev_type=%d WHERE mqtt_topic='%s';",
         ndev_type, omqtt_topic );
@@ -671,7 +680,7 @@ static int update_db_entry( char *odev_name, char *ndev_name,
            && (omqtt_topic != NULL)
            && (verified_ndev_type != -1) )
     {
-        n = snprintf( sql_buf, (65 + strlen(odev_name) +
+        snprintf( sql_buf, (65 + strlen(odev_name) +
         strlen(omqtt_topic) + get_digit_count(ndev_type)),
         "UPDATE device SET dev_type=%d WHERE dev_name='%s'" \
         " AND mqtt_topic='%s';",
@@ -682,7 +691,7 @@ static int update_db_entry( char *odev_name, char *ndev_name,
            && (omqtt_topic != NULL && nmqtt_topic != NULL)
            && (verified_ndev_type == -1) )
     {
-        n = snprintf( sql_buf, (82 + strlen(odev_name) +
+        snprintf( sql_buf, (82 + strlen(odev_name) +
         strlen(ndev_name) + strlen(omqtt_topic) + strlen(nmqtt_topic)),
         "UPDATE device SET dev_name='%s', mqtt_topic='%s' WHERE" \
         " dev_name='%s' AND mqtt_topic='%s';",
@@ -693,7 +702,7 @@ static int update_db_entry( char *odev_name, char *ndev_name,
            && (omqtt_topic != NULL && nmqtt_topic != NULL)
            && (verified_ndev_type != -1) )
     {
-        n = snprintf( sql_buf, (64 + strlen(omqtt_topic) +
+        snprintf( sql_buf, (64 + strlen(omqtt_topic) +
         strlen(nmqtt_topic) + get_digit_count(ndev_type)),
         "UPDATE device SET mqtt_topic='%s', dev_type=%d WHERE" \
         " mqtt_topic='%s';",
@@ -704,7 +713,7 @@ static int update_db_entry( char *odev_name, char *ndev_name,
            && (omqtt_topic == NULL && nmqtt_topic == NULL)
            && (verified_ndev_type != -1) )
     {
-        n = snprintf( sql_buf, (60 + strlen(odev_name) + strlen(ndev_name) +
+        snprintf( sql_buf, (60 + strlen(odev_name) + strlen(ndev_name) +
         get_digit_count(ndev_type)),
         "UPDATE device SET dev_name='%s', dev_type=%d WHERE" \
         " dev_name='%s';",
@@ -715,7 +724,7 @@ static int update_db_entry( char *odev_name, char *ndev_name,
            && (omqtt_topic != NULL && nmqtt_topic != NULL)
            && (verified_ndev_type != -1) )
     {
-        n = snprintf( sql_buf, (93 + strlen(odev_name) + strlen(ndev_name) +
+        snprintf( sql_buf, (93 + strlen(odev_name) + strlen(ndev_name) +
         strlen(omqtt_topic) + strlen(nmqtt_topic) +
         get_digit_count(ndev_type)),
         "UPDATE device SET dev_name='%s', mqtt_topic='%s', dev_type=%d" \
@@ -776,12 +785,10 @@ static int update_db_entry( char *odev_name, char *ndev_name,
 static int update_db_dev_state( char *dev_name, char *mqtt_topic,
                          const int new_state )
 {
-    int n = -1;
-
     // dev_name is our criteria
     if ( mqtt_topic == NULL )
     {
-        n = snprintf( sql_buf, (48 + strlen(dev_name) +
+        snprintf( sql_buf, (48 + strlen(dev_name) +
         get_digit_count(new_state)),
         "UPDATE device SET dev_state=%d WHERE dev_name='%s';",
         new_state, dev_name );
@@ -789,7 +796,7 @@ static int update_db_dev_state( char *dev_name, char *mqtt_topic,
     // mqtt_topic is our criteria
     else if ( dev_name == NULL)
     {
-        n = snprintf( sql_buf, (50 + strlen(mqtt_topic) +
+        snprintf( sql_buf, (50 + strlen(mqtt_topic) +
         get_digit_count(new_state)),
         "UPDATE device SET dev_state=%d WHERE mqtt_topic='%s';",
         new_state, mqtt_topic );
@@ -797,7 +804,7 @@ static int update_db_dev_state( char *dev_name, char *mqtt_topic,
     // both are used
     else if ( dev_name != NULL && mqtt_topic != NULL )
     {
-        n = snprintf( sql_buf, (66 + strlen(dev_name) + strlen(mqtt_topic) +
+        snprintf( sql_buf, (66 + strlen(dev_name) + strlen(mqtt_topic) +
         get_digit_count(new_state)),
         "UPDATE device SET dev_state=%d WHERE dev_name='%s' AND" \
         " mqtt_topic='%s';",
@@ -852,26 +859,24 @@ static int update_db_dev_state( char *dev_name, char *mqtt_topic,
  */
 static int delete_db_entry( char *dev_name, char *mqtt_topic )
 {
-    int n = -1;
-
     // Delete entry that matches dev_name
     if ( mqtt_topic == NULL )
     {
-        n = snprintf( sql_buf, (38 + strlen(dev_name)),
+        snprintf( sql_buf, (38 + strlen(dev_name)),
         "DELETE FROM device WHERE dev_name='%s';",
         dev_name );
     }
     // Delete entry's that match mqtt_topic (allows multiple to be deleted)
     else if ( dev_name == NULL )
     {
-        n = snprintf( sql_buf, (40 + strlen(mqtt_topic)),
+        snprintf( sql_buf, (40 + strlen(mqtt_topic)),
         "DELETE FROM device WHERE mqtt_topic='%s';",
         mqtt_topic );
     }
     // Delete entry that meets this criteria
     else if ( dev_name != NULL && mqtt_topic != NULL )
     {
-        n = snprintf( sql_buf, (56 + strlen(dev_name) + strlen(mqtt_topic)),
+        snprintf( sql_buf, (56 + strlen(dev_name) + strlen(mqtt_topic)),
         "DELETE FROM device WHERE dev_name='%s' AND mqtt_topic='%s';",
         dev_name, mqtt_topic );
     }
@@ -1063,6 +1068,9 @@ void *db_updater( void* args )
                     }
                     else
                     {
+                        /* Update the db_len variable */
+                        get_db_len();
+
                         /* reset for later use */
                         memset( memory[i].dev_name, 0, DB_DATA_LEN );
                         memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
