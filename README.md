@@ -114,14 +114,14 @@ is how it can be done:
 Template:
 LIST KL/<version#>
 KL/<version#> 200 Number of Devices n
-(n line of device names, and respective topic)
+(n line of device names,respective topic, and dev_type)
 
 Example in Practice:
 LIST KL/0.3
 KL/0.3 200 Number of Devices 3
-lamp -- tasmota
-outlet -- tasmota1
-bulb -- rgbbulb0
+lamp -- tasmota -- outlet
+outlet -- tasmota1 -- outlet
+bulb -- rgbbulb0 -- RGBbulb
 ```
 
 Deleting a device can also be done as follows:
