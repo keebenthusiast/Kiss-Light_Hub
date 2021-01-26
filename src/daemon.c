@@ -39,7 +39,7 @@ static int isDaemon = 0;
 /**
  * @brief Callback function for handling signals.
  *
- * @param    sig     identifier of signal
+ * @param sig identifier of signal
  */
 void handle_signal( int sig )
 {
@@ -192,7 +192,7 @@ static int daemonize()
         write( pid_fd, str, strlen(str) );
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 /**

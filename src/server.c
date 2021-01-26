@@ -67,7 +67,10 @@ static sem_t *mutex;
 static unsigned int closeSocket = 0;
 
 /* local prototypes as needed */
+static int get_dev_state( const char *dv_name );
 static int change_dev_state( const char *dv_name, const char *msg );
+static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type );
+static int delete_device( char *dv_name );
 
 /*******************************************************************************
  * Non-specific server-related initializations will reside here.
@@ -239,8 +242,21 @@ static int parse_server_request(char *buf, int *n)
             return rv;
         }
 
-        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
-                       KL_VERSION );
+        int status = add_device( str_buffer[1], str_buffer[2],
+                                 atoi(str_buffer[3]) );
+
+        if ( status )
+        {
+            *n = snprintf( buf, (36 + strlen(str_buffer[1])),
+                           "KL/%.1f 403 unable to add device '%s'\n",
+                           KL_VERSION, str_buffer[1] );
+        }
+        else
+        {
+            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
+                          "KL/%.1f 200 Device '%s' added\n",
+                          KL_VERSION, str_buffer[1] );
+        }
     }
     // TOGGLE dev_name KL/version#
     else if ( strncasecmp(str_buffer[0], "TOGGLE", 7) == 0 )
@@ -257,7 +273,7 @@ static int parse_server_request(char *buf, int *n)
 
         int status = change_dev_state( str_buffer[1], "toggle" );
 
-        if ( status == 1 )
+        if ( status )
         {
             *n = snprintf( buf, (30 + strlen(str_buffer[1])),
                            "KL/%.1f 404 no such device '%s'\n",
@@ -338,8 +354,20 @@ static int parse_server_request(char *buf, int *n)
             return rv;
         }
 
-        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
-                       KL_VERSION );
+        int status = delete_device( str_buffer[1] );
+
+        if ( status )
+        {
+            *n = snprintf( buf, (32 + strlen(str_buffer[1])),
+                           "KL/%.1f 402 unable to delete '%s'\n",
+                           KL_VERSION, str_buffer[1] );
+        }
+        else
+        {
+            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
+                          "KL/%.1f 200 Device '%s' deleted\n",
+                          KL_VERSION, str_buffer[1] );
+        }
     }
     // STATUS dev_name KL/version#
     else if ( strncasecmp(str_buffer[0], "STATUS", 7) == 0 )
@@ -354,8 +382,23 @@ static int parse_server_request(char *buf, int *n)
             return rv;
         }
 
-        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
-                       KL_VERSION );
+
+        int state = get_dev_state( str_buffer[1] );
+
+        /* check for status */
+        if ( state < 0 )
+        {
+            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
+                           "KL/%.1f 404 no such device '%s'\n",
+                           KL_VERSION, str_buffer[1] );
+        }
+        else
+        {
+            int result_len = (state) ? 3 : 4;
+            *n = snprintf( buf, (26 + strlen(str_buffer[1]) + result_len),
+                           "KL/%.1f 200 device '%s' is %s\n", KL_VERSION,
+                           str_buffer[1], (state) ? "ON" : "OFF" );
+        }
     }
     // allow the client to disconnect
     else if ( strncasecmp(str_buffer[0], "Q", 2) == 0
@@ -383,7 +426,40 @@ static int parse_server_request(char *buf, int *n)
  ******************************************************************************/
 
 /**
- * @brief Change device's state
+ * @brief get current device's state.
+ *
+ * @param dv_name the device name of interest.
+ *
+ * @note Returns -1 for no such device error, otherwise returns
+ * the state.
+ *
+ * @todo this may have to be specified for toggleable devices,
+ * with another one entirely for RGB bulbs.
+ */
+static int get_dev_state( const char *dv_name )
+{
+    int rv = -1; /* return value */
+
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
+        {
+            rv = memory[i].dev_state;
+            break;
+        }
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+
+    return rv;
+}
+
+/**
+ * @brief Change device's state.
  *
  * @param dv_name the device name to change
  * @param msg the message to change dev state
@@ -448,6 +524,112 @@ static int change_dev_state( const char *dv_name, const char *msg )
 
     return rv;
 }
+
+/**
+ * @brief Function that adds a device to memory,
+ * then eventually the database.
+ *
+ * @param dv_name the device name of the new device
+ * @param mqtt_tpc the mqtt_topic associated with the new device
+ * @param dv_type the type of device the new device is
+ *
+ * @note Returns 1 for failure to add device
+ * (usually because too many devices), returns 0 otherwise.
+ */
+static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type )
+{
+    int rv = 1; /* return value */
+
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    /* Scan for an empty spot */
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        /* Found a spot yay */
+        if ( memory[i].dev_name[0] == '\0' )
+        {
+            /* Copy necessary information */
+            strncpy( memory[i].dev_name, dv_name, strlen(dv_name) );
+            strncpy( memory[i].mqtt_topic, mqtt_tpc, strlen(mqtt_tpc) );
+            memory[i].dev_type = dv_type;
+
+            /* Also copy full topic as well */
+            snprintf( memory[i].stat_topic, (12 + strlen(mqtt_tpc)),
+                      "stat/%s/POWER", mqtt_tpc );
+            snprintf( memory[i].cmnd_topic, (12 + strlen(mqtt_tpc)),
+                      "cmnd/%s/POWER", mqtt_tpc );
+
+            /* subscribe to this new device */
+            mqtt_subscribe( cl, memory[i].stat_topic, 0 );
+
+            /* add this device to database! */
+            to_change[i] = 5;
+
+            /* set return value to success */
+            rv = 0;
+
+            /* all done */
+            break;
+        }
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+
+    return rv;
+}
+
+/**
+ * @brief Function that adds a device to memory,
+ * then eventually the database.
+ *
+ * @param dv_name the device name of the device to remove
+ *
+ * @note Returns 1 for failure to add device
+ * (usually because too many devices), returns 0 otherwise.
+ */
+static int delete_device( char *dv_name )
+{
+    int rv = 1; /* return value */
+
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+
+    /* scan for a dev_name match */
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
+        {
+            /* Copy current information to old, and memset */
+            strncpy( memory[i].odev_name, memory[i].dev_name,
+                     strlen(memory[i].dev_name) );
+            strncpy( memory[i].omqtt_topic, memory[i].mqtt_topic,
+                     strlen(memory[i].mqtt_topic) );
+            memset( memory[i].dev_name, 0, DB_DATA_LEN );
+            memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
+
+            /* unsubscribe from this device */
+            mqtt_unsubscribe( cl, memory[i].omqtt_topic );
+
+            /* add this device to database! */
+            to_change[i] = 6;
+
+            /* set return value to success */
+            rv = 0;
+
+            /* all done */
+            break;
+        }
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+
+    return rv;
+}
+
 
 /**
  * @brief Function that prints devices in memory when requested to list
