@@ -32,6 +32,7 @@ static config *conf;
 // pointers for database functions.
 static char *sql_buf;
 static db_data *memory;
+static char *dev_type_str;
 
 /*
  * global variable for a db counter,
@@ -47,8 +48,6 @@ static sem_t *mutex;
 
 /* Some function prototypes for future use */
 static void reset_db_counter();
-static int check_device_type( const int in );
-static int get_digit_count( const int in );
 static int get_db_len();
 static int insert_db_entry( char *dev_name, char *mqtt_topic, const int type );
 static int dump_db_entries();
@@ -58,6 +57,83 @@ static int update_db_entry( char *odev_name, char *ndev_name,
 static int update_db_dev_state( char *dev_name, char *mqtt_topic,
                          const int new_state );
 static int delete_db_entry( char *dev_name, char *mqtt_topic );
+
+/*******************************************************************************
+ * Miscellaneous useful functions will be posted here.
+ ******************************************************************************/
+
+/**
+ * @brief Function to verify device type.
+ *
+ * @param in the unknown device ID to be passed in.
+ *
+ * @note return -1 if invalid,
+ * proper device id otherwise.
+ */
+int check_device_type( const int in )
+{
+    int rv = -1;
+
+    switch( in )
+    {
+        case 0:
+            rv = 0;
+            break;
+        default:
+            rv = -1;
+            break;
+    }
+
+    return rv;
+}
+
+/**
+ * @brief
+ */
+char *device_type_to_str( const int in )
+{
+    switch( in )
+    {
+        case 0:
+            strncpy( dev_type_str, "outlet/toggleable", 18 );
+            break;
+
+        default:
+            strncpy( dev_type_str, "unknown/other", 14 );
+            break;
+    }
+
+    return dev_type_str;
+}
+
+/**
+ * @brief get the digit count for a particular integer.
+ *
+ * @param in the integer of interest.
+ *
+ * @note returns digit count.
+ */
+int get_digit_count( const int in )
+{
+    int count = 0;
+
+    if ( in == 0 )
+    {
+        count = 1;
+    }
+    else
+    {
+        int temp = in;
+
+        while ( temp != 0 )
+        {
+            temp /= 10;
+            count++;
+        }
+    }
+
+    return count;
+}
 
 /*******************************************************************************
  * Everything related to arg processing will reside here
@@ -211,7 +287,7 @@ int initialize_conf_parser( config *cfg )
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
  */
-int initialize_db( char *sql_buffer, db_data *dat, int *to_chng,
+int initialize_db( char *sql_buffer, db_data *dat, int *to_chng, char *dv_str,
                    pthread_mutex_t *lck, sem_t *mtx )
 {
     /*
@@ -221,6 +297,7 @@ int initialize_db( char *sql_buffer, db_data *dat, int *to_chng,
     sql_buf = sql_buffer;
     memory = dat;
     to_change = to_chng;
+    dev_type_str = dv_str;
 
     /* establish a local pointer for lock semaphore */
     lock = lck;
@@ -267,60 +344,6 @@ int initialize_db( char *sql_buffer, db_data *dat, int *to_chng,
 const int get_current_entry_count()
 {
     return db_len;
-}
-
-/**
- * @brief Function to verify device type.
- *
- * @param in the unknown device ID to be passed in.
- *
- * @note return -1 if invalid,
- * proper device id otherwise.
- */
-static int check_device_type( const int in )
-{
-    int rv = -1;
-
-    switch( in )
-    {
-        case 0:
-            rv = 0;
-            break;
-        default:
-            rv = -1;
-            break;
-    }
-
-    return rv;
-}
-
-/**
- * @brief get the digit count for a particular integer.
- *
- * @param in the integer of interest.
- *
- * @note returns digit count.
- */
-static int get_digit_count( const int in )
-{
-    int count = 0;
-
-    if ( in == 0 )
-    {
-        count = 1;
-    }
-    else
-    {
-        int temp = in;
-
-        while ( temp != 0 )
-        {
-            temp /= 10;
-            count++;
-        }
-    }
-
-    return count;
 }
 
 /**

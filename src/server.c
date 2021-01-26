@@ -66,7 +66,8 @@ static sem_t *mutex;
  */
 static unsigned int closeSocket = 0;
 
-/* Local prototypes as needed */
+/* local prototypes as needed */
+static int change_dev_state( const char *dv_name, const char *msg );
 
 /*******************************************************************************
  * Non-specific server-related initializations will reside here.
@@ -176,9 +177,10 @@ static float get_protocol_version(char *buf)
  * @param n the buffer length, modified when buf is modified.
  *
  * @note returns -1 to exit,
+ * returns 1 to dump current setups
  * returns 0 for all is good.
  */
-int parse_server_request(char *buf, int *n)
+static int parse_server_request(char *buf, int *n)
 {
     int rv = 0; /* the return value */
 
@@ -227,36 +229,131 @@ int parse_server_request(char *buf, int *n)
     // ADD dev_name mqtt_topic dev_type KL/version#
     else if ( strncasecmp(str_buffer[0], "ADD", 4) == 0 )
     {
+        if( get_protocol_version(str_buffer[4]) < 0.1 )
+        {
+            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+                           KL_VERSION );
+
+            clean_str_buffers();
+
+            return rv;
+        }
+
         *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
                        KL_VERSION );
     }
     // TOGGLE dev_name KL/version#
     else if ( strncasecmp(str_buffer[0], "TOGGLE", 7) == 0 )
     {
-        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
-                       KL_VERSION );
+        if( get_protocol_version(str_buffer[2]) < 0.1 )
+        {
+            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+                           KL_VERSION );
+
+            clean_str_buffers();
+
+            return rv;
+        }
+
+        int status = change_dev_state( str_buffer[1], "toggle" );
+
+        if ( status == 1 )
+        {
+            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
+                           "KL/%.1f 404 no such device '%s'\n",
+                           KL_VERSION, str_buffer[1] );
+        }
+        else
+        {
+            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
+                           "KL/%.1f 200 device %s toggled\n",
+                           KL_VERSION, str_buffer[1] );
+        }
     }
-    // SET dev_name [ON,1|OFF,0] KL/version#
+    // SET dev_name [ON,1,TRUE|OFF,0,FALSE] KL/version#
     else if ( strncasecmp(str_buffer[0], "SET", 4) == 0 )
     {
-        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
-                       KL_VERSION );
+        if( get_protocol_version(str_buffer[3]) < 0.1 )
+        {
+            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
+                           KL_VERSION );
+
+            clean_str_buffers();
+
+            return rv;
+        }
+
+        int status = change_dev_state( str_buffer[1], str_buffer[2] );
+
+        if ( status == 1 )
+        {
+            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
+                           "KL/%.1f 404 no such device '%s'\n",
+                           KL_VERSION, str_buffer[1] );
+        }
+        else if ( status == 2 )
+        {
+            *n = snprintf( buf, (31 + strlen(str_buffer[2])),
+                           "KL/%.1f 405 incorrect input '%s'\n",
+                           KL_VERSION, str_buffer[2] );
+        }
+        else
+        {
+            *n = snprintf( buf, (25 + strlen(str_buffer[1]) +
+                           strlen(str_buffer[2])),
+                           "KL/%.1f 200 device %s set %s\n",
+                           KL_VERSION, str_buffer[1], str_buffer[2] );
+        }
     }
     // LIST KL/version#
     else if ( strncasecmp(str_buffer[0], "LIST", 5) == 0 )
     {
-        *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
-                       KL_VERSION );
+        if( get_protocol_version(str_buffer[1]) < 0.1 )
+        {
+            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+                           KL_VERSION );
+
+            clean_str_buffers();
+
+            return rv;
+        }
+
+        *n = snprintf( buf, (32 + get_digit_count(get_current_entry_count())),
+                       "KL/%.1f 200 number of Devices: %d\n",
+                       KL_VERSION, get_current_entry_count() );
+
+        /* show the current devices to the client */
+        rv = 1;
     }
     // DELETE dev_name KL/version#
     else if ( strncasecmp(str_buffer[0], "DELETE", 7) == 0 )
     {
+        if( get_protocol_version(str_buffer[2]) < 0.1 )
+        {
+            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+                           KL_VERSION );
+
+            clean_str_buffers();
+
+            return rv;
+        }
+
         *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
                        KL_VERSION );
     }
     // STATUS dev_name KL/version#
     else if ( strncasecmp(str_buffer[0], "STATUS", 7) == 0 )
     {
+        if( get_protocol_version(str_buffer[2]) < 0.1 )
+        {
+            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+                           KL_VERSION );
+
+            clean_str_buffers();
+
+            return rv;
+        }
+
         *n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
                        KL_VERSION );
     }
@@ -284,6 +381,118 @@ int parse_server_request(char *buf, int *n)
 /*******************************************************************************
  * Everything related to the server will reside here.
  ******************************************************************************/
+
+/**
+ * @brief Change device's state
+ *
+ * @param dv_name the device name to change
+ * @param msg the message to change dev state
+ *
+ * @note Returns 1 for no such device, Returns 2 for invalid mqtt
+ * command, otherwise returns 0.
+ */
+static int change_dev_state( const char *dv_name, const char *msg )
+{
+    int rv = 0; /* return value */
+    int loc = -1; /* location of a device match */
+
+    /*
+     * This may have to be expanded for rgb bulbs, but
+     * we shall see.
+     */
+    /* make sure msg is something acceptable */
+    if ( strncasecmp(msg, "ON", 3) == 0
+      || strncasecmp(msg, "1", 2) == 0
+      || strncasecmp(msg, "TRUE", 5) == 0
+      || strncasecmp(msg, "OFF", 4) == 0
+      || strncasecmp(msg, "0", 2) == 0
+      || strncasecmp(msg, "FALSE", 6) == 0
+      || strncasecmp(msg, "TOGGLE", 7) == 0 )
+    {
+        rv = 0;
+    }
+    else
+    {
+        return 2;
+    }
+
+    /* Only when this point is memory going to be accessed */
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    /* scan for a dev_name match */
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
+        {
+            loc = i;
+            break;
+        }
+
+        /* No matches at all? all done */
+        if ( i == (conf->max_dev_count - 1) )
+        {
+            rv = 1;
+        }
+    }
+
+    /* if a device is found, send the command! */
+    if ( !rv )
+    {
+        mqtt_publish( cl, memory[loc].cmnd_topic, msg, strlen(msg),
+                      MQTT_PUBLISH_QOS_0 );
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+
+    return rv;
+}
+
+/**
+ * @brief Function that prints devices in memory when requested to list
+ * devices by client.
+ *
+ * @param fd the socket fd of the client.
+ * @param n the clien's buffer number
+ *
+ * @note This uses semaphores since it access memory to satisfy the request.
+ *
+ */
+static void dump_devices( int fd, const int n )
+{
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        /* Empty, move on */
+        if ( memory[i].dev_name[0] == '\0' )
+        {
+            continue;
+        }
+
+        char *dv_type = device_type_to_str( memory[i].dev_type );
+        int response_len = (10 + strlen(memory[i].dev_name) +
+                  strlen(memory[i].mqtt_topic) + strlen(dv_type));
+        snprintf( server_buffer[n], response_len, "%s -- %s -- %s\n",
+                  memory[i].dev_name, memory[i].mqtt_topic, dv_type );
+
+        int status = write( fd, server_buffer[n], response_len );
+
+        /* client must have disconnected, move on */
+        /* set equal to 0 if bugs come up! */
+        if ( status <= 0 )
+        {
+            close( fd );
+            fd = -1;
+            break;
+        }
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+}
 
 /**
  * @brief Create, Initialize, and return the server's socketfd.
@@ -338,7 +547,7 @@ int create_server_socket( const int port )
  * @param num the count of clients in the pollfd array.
  *
  */
-static void server_connection_handler( struct pollfd *connfds, int num )
+static void server_connection_handler( struct pollfd *connfds, const int num )
 {
     int count; /* To handle connections */
     int n = 0; /* get the length of read() and write() functions */
@@ -381,7 +590,11 @@ static void server_connection_handler( struct pollfd *connfds, int num )
             {
                 close( connfds[count].fd );
                 connfds[count].fd = -1;
-                continue;
+            }
+            /* the LIST request was sent */
+            else if ( status )
+            {
+                dump_devices( connfds[count].fd, (count - 1) );
             }
         }
     }
@@ -396,7 +609,7 @@ static void server_connection_handler( struct pollfd *connfds, int num )
  * @note Returns 1 for any errors that
  * may arise, returns 0 otherwise.
  */
-int server_loop( int listenfd )
+int server_loop( const int listenfd )
 {
     int rv = 0; /* return value, assume all is well */
     int connfd; /* the client's fd if one is accepted */

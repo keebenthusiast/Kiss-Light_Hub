@@ -43,6 +43,7 @@ typedef struct
 
     // SQL buffers
     char *sql_buffer;
+    char *dev_type_str;
     int *changes;
 
     // Mqtt buffers
@@ -110,6 +111,8 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
     log_debug( "allocating sql buffer" );
     bfrs->sql_buffer = (char *)malloc( cfg->db_buff * sizeof(char) );
     memset( bfrs->sql_buffer, 0, cfg->db_buff );
+    bfrs->dev_type_str = (char *)malloc( DEV_TYPE_LEN * sizeof(char) );
+    memset( bfrs->dev_type_str, 0, DEV_TYPE_LEN );
 
     log_debug( "allocating mqtt buffers" );
     bfrs->send_buffer = (uint8_t *)malloc( cfg->snd_buff * sizeof(uint8_t) );
@@ -189,6 +192,9 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
 
     free( bfrs->sql_buffer );
     bfrs->sql_buffer = NULL;
+
+    free( bfrs->dev_type_str );
+    bfrs->dev_type_str = NULL;
 
     free( bfrs->changes );
     bfrs->changes = NULL;
@@ -314,7 +320,7 @@ int main( int argc, char **argv )
      */
     log_trace( "Initialize sqlite and fill up RAM" );
     int status = initialize_db( bfrs->sql_buffer, memory, bfrs->changes,
-                                &lock, &mutex );
+                                bfrs->dev_type_str, &lock, &mutex );
 
     if ( status < 0 )
     {
@@ -364,11 +370,7 @@ int main( int argc, char **argv )
         return 1;
     }
 
-    /*
-     * A loop to subscribe all the stat topics
-     *
-     * TODO: TO BE IMPLEMENTED
-     */
+    /* A loop to subscribe all the stat topics */
     int count = 0;
     for ( int i = 0; i < cfg->max_dev_count; i++ )
     {

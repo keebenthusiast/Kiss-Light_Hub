@@ -21,7 +21,7 @@
 
 /* Constants */
 #define FULL_MESSAGE ((const char *)"KL/0.3 505 client capacity full, " \
-                      "try again later.\n")
+                      "try again later\n")
 
 enum {
     // should be at least 6
@@ -34,7 +34,7 @@ enum {
     KEEP_ALIVE = 400,
 
     // for when there are too many clients
-    FULL_MESSAGE_LEN = 51
+    FULL_MESSAGE_LEN = 50
 };
 
 /*******************************************************************************
