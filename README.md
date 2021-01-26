@@ -114,7 +114,7 @@ is how it can be done:
 Template:
 LIST KL/<version#>
 KL/<version#> 200 Number of Devices n
-(n line of device names,respective topic, and dev_type)
+(n line of device names, respective topic, and dev_type)
 
 Example in Practice:
 LIST KL/0.3
