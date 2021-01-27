@@ -386,10 +386,16 @@ static int parse_server_request(char *buf, int *n)
         int state = get_dev_state( str_buffer[1] );
 
         /* check for status */
-        if ( state < 0 )
+        if ( state < -1 )
         {
             *n = snprintf( buf, (30 + strlen(str_buffer[1])),
                            "KL/%.1f 404 no such device '%s'\n",
+                           KL_VERSION, str_buffer[1] );
+        }
+        else if ( state == -1 )
+        {
+            *n = snprintf( buf, (36 + strlen(str_buffer[1])),
+                           "KL/%.1f 401 device '%s' state unknown\n",
                            KL_VERSION, str_buffer[1] );
         }
         else
@@ -430,7 +436,7 @@ static int parse_server_request(char *buf, int *n)
  *
  * @param dv_name the device name of interest.
  *
- * @note Returns -1 for no such device error, otherwise returns
+ * @note Returns -2 for no such device error, otherwise returns
  * the state.
  *
  * @todo this may have to be specified for toggleable devices,
@@ -438,7 +444,7 @@ static int parse_server_request(char *buf, int *n)
  */
 static int get_dev_state( const char *dv_name )
 {
-    int rv = -1; /* return value */
+    int rv = -2; /* return value */
 
     sem_wait( mutex );
     pthread_mutex_lock( lock );

@@ -440,16 +440,6 @@ int main( int argc, char **argv )
     {
         log_trace( "server socket established" );
 
-        /* start publishing the time */
-        //printf( "listening for 'stat/tasmota/POWER' messages.\n" );
-        //printf( "Press CTRL-D to exit.\n\n" );
-
-        /* block */
-        //while(fgetc(stdin) != EOF);
-
-        /* disconnect */
-        //printf( "\ndisconnecting\n" );
-
         /*
          * Time to Poll and run the server's network loop.
          */
