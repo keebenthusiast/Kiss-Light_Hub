@@ -79,6 +79,19 @@ int check_device_type( const int in )
         case 0:
             rv = 0;
             break;
+
+        case 1:
+            rv = 1;
+            break;
+
+        case 2:
+            rv = 2;
+            break;
+
+        case 3:
+            rv = 3;
+            break;
+
         default:
             rv = -1;
             break;
@@ -88,7 +101,11 @@ int check_device_type( const int in )
 }
 
 /**
- * @brief
+ * @brief Function to convert dev_type to string.
+ *
+ * @param in the Device ID to be passed in.
+ *
+ * @note returns the string created.
  */
 char *device_type_to_str( const int in )
 {
@@ -96,6 +113,18 @@ char *device_type_to_str( const int in )
     {
         case 0:
             strncpy( dev_type_str, "outlet/toggleable", 18 );
+            break;
+
+        case 1:
+            strncpy( dev_type_str, "powerstrip", 11 );
+            break;
+
+        case 2:
+            strncpy( dev_type_str, "rgbbulb", 8 );
+            break;
+
+        case 3:
+            strncpy( dev_type_str, "dimmablebulb", 13 );
             break;
 
         default:
@@ -1099,6 +1128,9 @@ void *db_updater( void* args )
                         memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
                         memory[i].dev_type = -1;
                         memory[i].dev_state = -1;
+
+                        memset( memory[i].cmnd_topic, 0, DB_DATA_LEN );
+                        memset( memory[i].stat_topic, 0, DB_DATA_LEN );
 
                         memset( memory[i].odev_name, 0, DB_DATA_LEN );
                         memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );

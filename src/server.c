@@ -68,6 +68,7 @@ static unsigned int closeSocket = 0;
 
 /* local prototypes as needed */
 static int get_dev_state( const char *dv_name );
+static int get_dev_state_mqtt( const char *dv_name );
 static int change_dev_state( const char *dv_name, const char *msg );
 static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type );
 static int delete_device( char *dv_name );
@@ -394,9 +395,23 @@ static int parse_server_request(char *buf, int *n)
         }
         else if ( state == -1 )
         {
-            *n = snprintf( buf, (36 + strlen(str_buffer[1])),
-                           "KL/%.1f 401 device '%s' state unknown\n",
-                           KL_VERSION, str_buffer[1] );
+            /* try again, but using mqtt */
+            state = get_dev_state_mqtt( str_buffer[1] );
+
+            /* check for status */
+            if ( state == -1 )
+            {
+                *n = snprintf( buf, (36 + strlen(str_buffer[1])),
+                               "KL/%.1f 401 device '%s' state unknown\n",
+                               KL_VERSION, str_buffer[1] );
+            }
+            else
+            {
+                int result_len = (state) ? 3 : 4;
+                *n = snprintf( buf, (26 + strlen(str_buffer[1]) + result_len),
+                               "KL/%.1f 200 device '%s' is %s\n", KL_VERSION,
+                               str_buffer[1], (state) ? "ON" : "OFF" );
+            }
         }
         else
         {
@@ -460,6 +475,43 @@ static int get_dev_state( const char *dv_name )
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
+
+    return rv;
+}
+
+/**
+ * @brief get current device's state, but asking the device itself.
+ *
+ * @param dv_name the device name of interest.
+ *
+ * @note Returns -2 for no such device error, otherwise returns
+ * the state.
+ *
+ * @todo this may have to be specified for toggleable devices,
+ * with another one entirely for RGB bulbs.
+ */
+static int get_dev_state_mqtt( const char *dv_name )
+{
+    int rv = -2; /* return value */
+
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
+        {
+            mqtt_publish( cl, memory[i].cmnd_topic, "", 0,
+                          MQTT_PUBLISH_QOS_0 );
+            break;
+        }
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+
+    /* sleep for 150ms */
+    usleep( 150000U );
 
     return rv;
 }
@@ -617,7 +669,7 @@ static int delete_device( char *dv_name )
             memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
 
             /* unsubscribe from this device */
-            mqtt_unsubscribe( cl, memory[i].omqtt_topic );
+            mqtt_unsubscribe( cl, memory[i].stat_topic );
 
             /* add this device to database! */
             to_change[i] = 6;
@@ -1089,12 +1141,10 @@ void publish_kl_callback( void** client,
          */
         if ( strncasecmp(app_msg, "ON", 3) == 0 )
         {
-            printf( "Detected that it is on!\n" );
             memory[memory_location].dev_state = 1;
         }
         else if ( strncasecmp(app_msg, "OFF", 4) == 0 )
         {
-            printf( "Detected that it is off!\n" );
             memory[memory_location].dev_state = 0;
         }
         else
