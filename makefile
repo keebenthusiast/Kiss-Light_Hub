@@ -21,7 +21,6 @@ kisslight: $(OBJ)
 
 install: kisslight
 	cp resources/kisslight.ini /etc/
-	mkdir /etc/kisslight
 	cp resources/kisslight.service /etc/systemd/system/
 	cp kisslight /usr/bin/
 	mkdir /var/lib/kisslight

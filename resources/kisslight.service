@@ -1,5 +1,5 @@
 [Unit]
-Description=A simple network-able RF controller
+Description=A simple home automation hub
 
 [Service]
 Type=forking
