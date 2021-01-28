@@ -55,7 +55,7 @@ __________________________________________
 
 400 -- bad request, did not understand what was sent
 
-401 -- device's state is unkown (state not initialized usually)
+401 -- device's state is unknown (state not initialized usually)
 
 402 -- unable to remove device (doesn't exist generally)
 
@@ -68,12 +68,115 @@ __________________________________________
 406 -- unable to detect kisslight version (will become important as time goes on)
 
 407 -- not yet implemented
+
+408 -- device already exists (when trying to add a duplicate device)
 __________________________________________
 500 series error codes:
 
-500 -- Error on the mqtt side of things
+500 -- error on the mqtt side of things
 
-505 -- Too many simultaneous connections at once, try again later
+505 -- too many simultaneous connections at once, try again later
+```
+
+## Client
+
+The respository comes with a simple but effective command line client written in golang.
+
+The usage currently looks like this:
+
+```shell
+computer ~ $ kl-client
+To change states of existing devices:
+
+usage: kl-client set <device name> on|off
+                   toggle <device name>
+                   send <topic> <command>
+
+Adding/deleting, status, and listing of devices:
+
+usage: kl-client add <device name> <mqtt_topic> <dev_type>
+                   delete <device name>
+                   status <device name>
+                   list
+
+Updating server IP address, or port:
+
+usage: kl-client ip <IP address>
+                   port <port number>
+
+```
+
+### Add/Delete, list, and get device status
+
+Add a device:
+
+```shell
+computer ~ $ kl-client add outlet0 topic 0
+added Device outlet0 successfully
+```
+
+Delete a device:
+
+```shell
+computer ~ $ kl-client delete outlet0
+deleted device outlet0 successfully
+```
+
+List devices:
+
+```shell
+computer ~ % kl-client list
+here is the list of 1 devices:
+(device name -- mqtt topic -- device type)
+outlet0 -- topic -- outlet/toggleable
+```
+
+Get a device's status:
+
+```shell
+computer ~ $ kl-client status outlet0
+device outlet0 state is currently OFF
+```
+
+### Change device's states
+
+Set device on or off:
+
+```shell
+computer ~ $ kl-client set outlet0 on
+successfully set device outlet0 on
+computer ~ $ kl-client set outlet0 off
+successfully set device outlet0 off
+```
+
+Toggle device:
+
+```shell
+computer ~ $ kl-client toggle kiki
+toggled device kiki successfully
+```
+
+send custom topic and command:
+
+```shell
+computer ~ $ kl-client send cmnd/tasmota/POWER OFF
+transmitted cmnd/tasmota/POWER OFF successfully
+```
+
+### Updating client's IP address or port number
+
+Update ip address of server: (say server IP has changed, client does not yet know that)
+
+```shell
+computer ~ $ kl-client ip 127.0.0.1
+IP address 127.0.0.1 set
+```
+
+Updating port of server: (because port ```1555``` was already used for some reason or other)
+
+```shell
+computer ~ $ kl-client port 2423
+port 2423 set
 ```
 
 ## Using Telnet
@@ -99,11 +202,11 @@ Transmit a custom mqtt topic and command without storing it into a database:
 ```plaintext
 Template:
 TRANSMIT <full topic> <command> KL/<version#>
-KL/<version#> 200 custom command '<full topic> <command>' sent
+KL/<version#> 200 custom command <full topic> <command> sent
 
 Example in practice:
 TRANSMIT cmnd/tasmota/power toggle KL/0.3
-KL/0.3 200 custom command 'cmnd/tasmota/power toggle' sent
+KL/0.3 200 custom command cmnd/tasmota/power toggle sent
 ```
 
 Toggling the saved device can be done as follows:
@@ -259,7 +362,7 @@ The values in the to_change[] array correspond to the following:
 1 -- Update mqtt_name
 2 -- Update mqtt_topic
 3 -- Update device_type
-4 -- Update all of an entry (makes it easier, no need to think about different combinations of things needing to be updated and such)
+4 -- Update all of an entry (simplifies things greatly)
 5 -- Add new device to database
 6 -- Remove device from database
 ```
@@ -270,6 +373,13 @@ The values in the to_change[] array correspond to the following:
 2. When server_loop() checks if closeSocket is greater than 0, it is true and will break out of the loop.
 3. The main() in ```main.c``` will then cancel the mqtt client and database updater threads and have the resources join back to the main process.
 4. finally main() run the cleanup() command directly above the main function, and main() will return 0 upon exit.
+
+### other details
+
+- Server currently supports up to 10 simultaneous connections, but this can be changed in ```server.h``` if desired.
+- Server can support 50 devices by default, but ```/etc/kisslight.ini``` can be changed to support more, or less depending.
+- Server database location is ```/var/lib/kisslight/kisslight.db``` but can also be updated in the ```/etc/kisslight.ini``` file.
+- Log is located in ```/var/log/kisslight/kisslight.log```.
 
 ## Credits
 
