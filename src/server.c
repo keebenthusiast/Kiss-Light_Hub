@@ -196,7 +196,7 @@ static int parse_server_request(char *buf, int *n)
     memset( buf, 0, conf->buffer_size );
 
     /* Use below for features not yet implemented! */
-    //*n = snprintf( buf, 32, "KL/%.1f 407 Not Yet Implemented\n",
+    //*n = snprintf( buf, 32, "KL/%.1f 407 not yet implemented\n",
     //               KL_VERSION );
 
     // TRANSMIT custom_topic custom_message KL/version#
@@ -204,7 +204,7 @@ static int parse_server_request(char *buf, int *n)
     {
         if( get_protocol_version(str_buffer[3]) < 0.1 )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
                            KL_VERSION );
 
             clean_str_buffers();
@@ -219,14 +219,14 @@ static int parse_server_request(char *buf, int *n)
         {
             log_warn( "mqtt error: %s", mqtt_error_str(cl->error) );
             *n = snprintf( buf, (29 + strlen(mqtt_error_str(cl->error))),
-                           "KL/%.1f 500 Internal Error: %s\n", KL_VERSION,
+                           "KL/%.1f 500 internal error: %s\n", KL_VERSION,
                            mqtt_error_str(cl->error) );
         }
         else
         {
-            *n = snprintf( buf, (36 + strlen(str_buffer[1]) +
+            *n = snprintf( buf, (34 + strlen(str_buffer[1]) +
                            strlen(str_buffer[2])),
-                           "KL/%.1f 200 Custom Command '%s %s' Sent\n",
+                           "KL/%.1f 200 custom command %s %s sent\n",
                            KL_VERSION, str_buffer[1], str_buffer[2] );
         }
     }
@@ -235,7 +235,7 @@ static int parse_server_request(char *buf, int *n)
     {
         if( get_protocol_version(str_buffer[4]) < 0.1 )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
                            KL_VERSION );
 
             clean_str_buffers();
@@ -248,14 +248,14 @@ static int parse_server_request(char *buf, int *n)
 
         if ( status )
         {
-            *n = snprintf( buf, (36 + strlen(str_buffer[1])),
-                           "KL/%.1f 403 unable to add device '%s'\n",
+            *n = snprintf( buf, (34 + strlen(str_buffer[1])),
+                           "KL/%.1f 403 unable to add device %s\n",
                            KL_VERSION, str_buffer[1] );
         }
         else
         {
-            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
-                          "KL/%.1f 200 Device '%s' added\n",
+            *n = snprintf( buf, (26 + strlen(str_buffer[1])),
+                          "KL/%.1f 200 device %s added\n",
                           KL_VERSION, str_buffer[1] );
         }
     }
@@ -264,7 +264,7 @@ static int parse_server_request(char *buf, int *n)
     {
         if( get_protocol_version(str_buffer[2]) < 0.1 )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
                            KL_VERSION );
 
             clean_str_buffers();
@@ -276,8 +276,8 @@ static int parse_server_request(char *buf, int *n)
 
         if ( status )
         {
-            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
-                           "KL/%.1f 404 no such device '%s'\n",
+            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
+                           "KL/%.1f 404 no such device %s\n",
                            KL_VERSION, str_buffer[1] );
         }
         else
@@ -304,14 +304,14 @@ static int parse_server_request(char *buf, int *n)
 
         if ( status == 1 )
         {
-            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
-                           "KL/%.1f 404 no such device '%s'\n",
+            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
+                           "KL/%.1f 404 no such device %s\n",
                            KL_VERSION, str_buffer[1] );
         }
         else if ( status == 2 )
         {
-            *n = snprintf( buf, (31 + strlen(str_buffer[2])),
-                           "KL/%.1f 405 incorrect input '%s'\n",
+            *n = snprintf( buf, (29 + strlen(str_buffer[2])),
+                           "KL/%.1f 405 incorrect input %s\n",
                            KL_VERSION, str_buffer[2] );
         }
         else
@@ -327,7 +327,7 @@ static int parse_server_request(char *buf, int *n)
     {
         if( get_protocol_version(str_buffer[1]) < 0.1 )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
                            KL_VERSION );
 
             clean_str_buffers();
@@ -336,7 +336,7 @@ static int parse_server_request(char *buf, int *n)
         }
 
         *n = snprintf( buf, (32 + get_digit_count(get_current_entry_count())),
-                       "KL/%.1f 200 number of Devices: %d\n",
+                       "KL/%.1f 200 number of devices: %d\n",
                        KL_VERSION, get_current_entry_count() );
 
         /* show the current devices to the client */
@@ -347,7 +347,7 @@ static int parse_server_request(char *buf, int *n)
     {
         if( get_protocol_version(str_buffer[2]) < 0.1 )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
                            KL_VERSION );
 
             clean_str_buffers();
@@ -359,14 +359,14 @@ static int parse_server_request(char *buf, int *n)
 
         if ( status )
         {
-            *n = snprintf( buf, (32 + strlen(str_buffer[1])),
-                           "KL/%.1f 402 unable to delete '%s'\n",
+            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
+                           "KL/%.1f 402 unable to delete %s\n",
                            KL_VERSION, str_buffer[1] );
         }
         else
         {
-            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
-                          "KL/%.1f 200 Device '%s' deleted\n",
+            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
+                          "KL/%.1f 200 device %s deleted\n",
                           KL_VERSION, str_buffer[1] );
         }
     }
@@ -375,7 +375,7 @@ static int parse_server_request(char *buf, int *n)
     {
         if( get_protocol_version(str_buffer[2]) < 0.1 )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 Cannot Detect KL version\n",
+            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
                            KL_VERSION );
 
             clean_str_buffers();
@@ -389,8 +389,8 @@ static int parse_server_request(char *buf, int *n)
         /* check for status */
         if ( state < -1 )
         {
-            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
-                           "KL/%.1f 404 no such device '%s'\n",
+            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
+                           "KL/%.1f 404 no such device %s\n",
                            KL_VERSION, str_buffer[1] );
         }
         else if ( state == -1 )
@@ -399,25 +399,25 @@ static int parse_server_request(char *buf, int *n)
             state = get_dev_state_mqtt( str_buffer[1] );
 
             /* check for status */
-            if ( state == -1 )
+            if ( state < -1 )
             {
-                *n = snprintf( buf, (36 + strlen(str_buffer[1])),
-                               "KL/%.1f 401 device '%s' state unknown\n",
+                *n = snprintf( buf, (34 + strlen(str_buffer[1])),
+                               "KL/%.1f 401 device %s state unknown\n",
                                KL_VERSION, str_buffer[1] );
             }
             else
             {
                 int result_len = (state) ? 3 : 4;
-                *n = snprintf( buf, (26 + strlen(str_buffer[1]) + result_len),
-                               "KL/%.1f 200 device '%s' is %s\n", KL_VERSION,
+                *n = snprintf( buf, (24 + strlen(str_buffer[1]) + result_len),
+                               "KL/%.1f 200 device %s is %s\n", KL_VERSION,
                                str_buffer[1], (state) ? "ON" : "OFF" );
             }
         }
         else
         {
             int result_len = (state) ? 3 : 4;
-            *n = snprintf( buf, (26 + strlen(str_buffer[1]) + result_len),
-                           "KL/%.1f 200 device '%s' is %s\n", KL_VERSION,
+            *n = snprintf( buf, (24 + strlen(str_buffer[1]) + result_len),
+                           "KL/%.1f 200 device %s is %s\n", KL_VERSION,
                            str_buffer[1], (state) ? "ON" : "OFF" );
         }
     }
@@ -425,7 +425,7 @@ static int parse_server_request(char *buf, int *n)
     else if ( strncasecmp(str_buffer[0], "Q", 2) == 0
            || strncasecmp(str_buffer[0], "QUIT", 5) == 0 )
     {
-        *n = snprintf( buf, 20, "KL/%.1f 200 Goodbye\n", KL_VERSION );
+        *n = snprintf( buf, 20, "KL/%.1f 200 goodbye\n", KL_VERSION );
 
         /* tell the connection handler to let the client exit */
         rv = -1;
@@ -433,7 +433,7 @@ static int parse_server_request(char *buf, int *n)
     // Something else was passed in
     else
     {
-        *n = snprintf( buf, 24, "KL/%.1f 400 Bad Request\n", KL_VERSION );
+        *n = snprintf( buf, 24, "KL/%.1f 400 bad request\n", KL_VERSION );
     }
 
     /* Clean str buffers */
@@ -484,7 +484,7 @@ static int get_dev_state( const char *dv_name )
  *
  * @param dv_name the device name of interest.
  *
- * @note Returns -2 for no such device error, otherwise returns
+ * @note Returns -1 for unknown state, otherwise returns
  * the state.
  *
  * @todo this may have to be specified for toggleable devices,
@@ -492,7 +492,8 @@ static int get_dev_state( const char *dv_name )
  */
 static int get_dev_state_mqtt( const char *dv_name )
 {
-    int rv = -2; /* return value */
+    int rv = -1; /* return value */
+    int loc = -1;
 
     sem_wait( mutex );
     pthread_mutex_lock( lock );
@@ -503,6 +504,7 @@ static int get_dev_state_mqtt( const char *dv_name )
         {
             mqtt_publish( cl, memory[i].cmnd_topic, "", 0,
                           MQTT_PUBLISH_QOS_0 );
+            loc = i;
             break;
         }
     }
@@ -512,6 +514,15 @@ static int get_dev_state_mqtt( const char *dv_name )
 
     /* sleep for 150ms */
     usleep( 150000U );
+
+    /* See if a response has been made */
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    rv = memory[loc].dev_state;
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
 
     return rv;
 }
@@ -671,7 +682,7 @@ static int delete_device( char *dv_name )
             /* unsubscribe from this device */
             mqtt_unsubscribe( cl, memory[i].stat_topic );
 
-            /* add this device to database! */
+            /* delete this device from database! */
             to_change[i] = 6;
 
             /* set return value to success */
@@ -1110,7 +1121,9 @@ void publish_kl_callback( void** client,
     strncpy( topic, published->topic_name, published->topic_name_size );
     strncpy( app_msg, published->application_message,
              published->application_message_size );
-    printf( "%s : %s\n", topic, app_msg );
+
+    // for debugging purposes
+    //printf( "%s : %s\n", topic, app_msg );
 
     /* Find a match! */
     for ( int i = 0; i < conf->max_dev_count; i++ )

@@ -168,8 +168,10 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
     log_debug( "config data freed" );
 
     log_debug( "freeing buffers" );
+
     /* Now to free the memory allocated by buffers */
-    for ( int i = 0; i < (POLL_SIZE - 1); i++ )
+    int len = (ARG_LEN > (POLL_SIZE - 1)) ? ARG_LEN : (POLL_SIZE - 1);
+    for ( int i = 0; i < len; i++ )
     {
         if ( i < ARG_LEN )
         {
@@ -177,8 +179,11 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
             bfrs->str_buffer[i] = NULL;
         }
 
-        free( bfrs->server_buffer[i] );
-        bfrs->server_buffer[i] = NULL;
+        if ( i < (POLL_SIZE - 1) )
+        {
+            free( bfrs->server_buffer[i] );
+            bfrs->server_buffer[i] = NULL;
+        }
     }
 
     free( memory );
@@ -257,6 +262,11 @@ int main( int argc, char **argv )
     if ( initialize_conf_parser(cfg) != 0 )
     {
         log_error( "Unable to initialize configuration parser, exiting..." );
+
+        free( cfg );
+
+        fclose( lg );
+
         return 1;
     }
     log_trace( "Configuration parser initialized" );
@@ -466,6 +476,8 @@ int main( int argc, char **argv )
         pthread_cancel(database_thr);
         pthread_join(mqtt_client_thr, NULL);
         pthread_join(database_thr, NULL);
+
+        close( sockfd );
     }
     else
     {

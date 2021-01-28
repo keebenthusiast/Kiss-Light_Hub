@@ -24,7 +24,7 @@
                       "try again later\n")
 
 enum {
-    // should be at least 6
+    // should be at least 2
     POLL_SIZE = 11,
     LISTEN_QUEUE = 10,
     ARG_LEN = 5,
