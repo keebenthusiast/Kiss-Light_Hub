@@ -246,10 +246,16 @@ static int parse_server_request(char *buf, int *n)
         int status = add_device( str_buffer[1], str_buffer[2],
                                  atoi(str_buffer[3]) );
 
-        if ( status )
+        if ( status == 1 )
         {
             *n = snprintf( buf, (34 + strlen(str_buffer[1])),
                            "KL/%.1f 403 unable to add device %s\n",
+                           KL_VERSION, str_buffer[1] );
+        }
+        else if ( status == 2 )
+        {
+            *n = snprintf( buf, (35 + strlen(str_buffer[1])),
+                           "KL/%.1f 408 device %s already exists\n",
                            KL_VERSION, str_buffer[1] );
         }
         else
@@ -399,7 +405,7 @@ static int parse_server_request(char *buf, int *n)
             state = get_dev_state_mqtt( str_buffer[1] );
 
             /* check for status */
-            if ( state < -1 )
+            if ( state < 0 )
             {
                 *n = snprintf( buf, (34 + strlen(str_buffer[1])),
                                "KL/%.1f 401 device %s state unknown\n",
@@ -602,45 +608,66 @@ static int change_dev_state( const char *dv_name, const char *msg )
  * @param mqtt_tpc the mqtt_topic associated with the new device
  * @param dv_type the type of device the new device is
  *
- * @note Returns 1 for failure to add device
+ * @note Returns 2 for device already exists,
+ * returns 1 for failure to add device
  * (usually because too many devices), returns 0 otherwise.
  */
 static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type )
 {
-    int rv = 1; /* return value */
+    int rv = 1; /* return value, assume too many devices */
+    int dup = 0; /* assume no dupes initially */
+    int loc = -1; /* assume no free space initially */
 
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
-    /* Scan for an empty spot */
+    /* Scan for an empty spot, check for duplicates */
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
-        /* Found a spot yay */
-        if ( memory[i].dev_name[0] == '\0' )
+        /* Check for a duplicate */
+        if ( strncasecmp( memory[i].dev_name, dv_name,
+             strlen(dv_name)) == 0 )
         {
-            /* Copy necessary information */
-            strncpy( memory[i].dev_name, dv_name, strlen(dv_name) );
-            strncpy( memory[i].mqtt_topic, mqtt_tpc, strlen(mqtt_tpc) );
-            memory[i].dev_type = dv_type;
-
-            /* Also copy full topic as well */
-            snprintf( memory[i].stat_topic, (12 + strlen(mqtt_tpc)),
-                      "stat/%s/POWER", mqtt_tpc );
-            snprintf( memory[i].cmnd_topic, (12 + strlen(mqtt_tpc)),
-                      "cmnd/%s/POWER", mqtt_tpc );
-
-            /* subscribe to this new device */
-            mqtt_subscribe( cl, memory[i].stat_topic, 0 );
-
-            /* add this device to database! */
-            to_change[i] = 5;
-
-            /* set return value to success */
-            rv = 0;
-
-            /* all done */
+            /* duplicate found */
+            dup = 1;
+            rv = 2;
             break;
         }
+
+        /* take the first found free spot */
+        if ( memory[i].dev_name[0] == '\0' && loc == -1 )
+        {
+            rv = 0;
+            loc = i;
+        }
+    }
+
+    /* only add if there does not exist a duplicate */
+    if ( !dup && rv == 0 )
+    {
+        /* Copy necessary information */
+        strncpy( memory[loc].dev_name, dv_name, strlen(dv_name) );
+        strncpy( memory[loc].mqtt_topic, mqtt_tpc, strlen(mqtt_tpc) );
+        memory[loc].dev_type = dv_type;
+
+        /* Also copy full topic as well */
+        snprintf( memory[loc].stat_topic, (12 + strlen(mqtt_tpc)),
+                  "stat/%s/POWER", mqtt_tpc );
+        snprintf( memory[loc].cmnd_topic, (12 + strlen(mqtt_tpc)),
+                  "cmnd/%s/POWER", mqtt_tpc );
+
+        /* subscribe to this new device */
+        mqtt_subscribe( cl, memory[loc].stat_topic, 0 );
+
+        /* request the current state if at all possible */
+        mqtt_publish( cl, memory[loc].cmnd_topic, "", 0,
+                          MQTT_PUBLISH_QOS_0 );
+
+        /* add this device to database! */
+        to_change[loc] = 5;
+
+        /* set return value to success */
+        rv = 0;
     }
 
     pthread_mutex_unlock( lock );
@@ -664,7 +691,6 @@ static int delete_device( char *dv_name )
 
     sem_wait( mutex );
     pthread_mutex_lock( lock );
-
 
     /* scan for a dev_name match */
     for ( int i = 0; i < conf->max_dev_count; i++ )
@@ -1123,7 +1149,7 @@ void publish_kl_callback( void** client,
              published->application_message_size );
 
     // for debugging purposes
-    //printf( "%s : %s\n", topic, app_msg );
+    printf( "%s : %s\n", topic, app_msg );
 
     /* Find a match! */
     for ( int i = 0; i < conf->max_dev_count; i++ )
@@ -1225,6 +1251,7 @@ void publish_kl_callback( void** client,
                 case 5:
                 case 6:
                     /* ignore, leave value alone */
+                    log_warn( "Found case %d", to_change[memory_location] );
                     break;
 
                 default:

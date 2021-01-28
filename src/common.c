@@ -49,7 +49,8 @@ static sem_t *mutex;
 /* Some function prototypes for future use */
 static void reset_db_counter();
 static int get_db_len();
-static int insert_db_entry( char *dev_name, char *mqtt_topic, const int type );
+static int insert_db_entry( char *dev_name, char *mqtt_topic, const int type,
+                            const int state );
 static int dump_db_entries();
 static int update_db_entry( char *odev_name, char *ndev_name,
                      char *omqtt_topic, char *nmqtt_topic,
@@ -546,7 +547,8 @@ static int get_db_len()
  * Returns -1 when unable to open db file,
  * Returns 0 otherwise.
  */
-static int insert_db_entry( char *dev_name, char *mqtt_topic, const int type )
+static int insert_db_entry( char *dev_name, char *mqtt_topic, const int type,
+                            const int state )
 {
     /* prepare insert statement */
     /* determine type digit count */
@@ -565,13 +567,19 @@ static int insert_db_entry( char *dev_name, char *mqtt_topic, const int type )
     }
 
     int count = get_digit_count( verified_type );
+    count += get_digit_count( state );
+
+    /* to compensate for the - */
+    if ( state < 0 )
+    {
+        count++;
+    }
 
     /* put it all together */
-    /* dev_state is currently unknown so -1 */
-    snprintf( sql_buf, (43 + strlen(dev_name) +
+    snprintf( sql_buf, (41 + strlen(dev_name) +
     strlen(mqtt_topic) + count),
-    "INSERT INTO device VALUES( '%s', '%s', %d, -1 );",
-    dev_name, mqtt_topic, type );
+    "INSERT INTO device VALUES( '%s', '%s', %d, %d );",
+    dev_name, mqtt_topic, type, state );
 
     /* Actually execute the insert db query */
     int db_ret = execute_db_query( sql_buf );
@@ -1065,7 +1073,7 @@ void *db_updater( void* args )
                 case 5:
                 {
                     insert_db_entry( memory[i].dev_name, memory[i].mqtt_topic,
-                                     memory[i].dev_type );
+                                     memory[i].dev_type, memory[i].dev_state );
 
                     get_db_len();
 
