@@ -152,8 +152,8 @@ successfully set device outlet0 off
 Toggle device:
 
 ```shell
-computer ~ $ kl-client toggle kiki
-toggled device kiki successfully
+computer ~ $ kl-client toggle outlet0
+toggled device outlet0 successfully
 ```
 
 send custom topic and command:
