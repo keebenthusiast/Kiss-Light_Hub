@@ -64,6 +64,40 @@ static int delete_db_entry( char *dev_name, char *mqtt_topic );
  ******************************************************************************/
 
 /**
+ * @brief Function to get current entry count
+ *
+ * @note this differs from get_db_len(), this function
+ * just returns the count at that particular period in time.
+ */
+const int get_current_entry_count()
+{
+    return db_len;
+}
+
+/**
+ * decrement db_len (like when removing a device)
+ *
+ * @note this could potentially cause problems, only call when
+ * in the critical space of a semaphore.
+ */
+void decrement_db_count()
+{
+    --db_len;
+}
+
+
+/**
+ * @brief increment db_len (like when adding a new device)
+ *
+ * @note this could potentially cause problems, only call when
+ * in the critical space of a semaphore.
+ */
+void increment_db_count()
+{
+    ++db_len;
+}
+
+/**
  * @brief Function to verify device type.
  *
  * @param in the unknown device ID to be passed in.
@@ -363,17 +397,6 @@ int initialize_db( char *sql_buffer, db_data *dat, int *to_chng, char *dv_str,
 
     return 0;
 
-}
-
-/**
- * @brief Function to get current entry count
- *
- * @note this differs from get_db_len(), this function
- * just returns the count at that particular period in time.
- */
-const int get_current_entry_count()
-{
-    return db_len;
 }
 
 /**

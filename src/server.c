@@ -230,41 +230,6 @@ static int parse_server_request(char *buf, int *n)
                            KL_VERSION, str_buffer[1], str_buffer[2] );
         }
     }
-    // ADD dev_name mqtt_topic dev_type KL/version#
-    else if ( strncasecmp(str_buffer[0], "ADD", 4) == 0 )
-    {
-        if( get_protocol_version(str_buffer[4]) < 0.1 )
-        {
-            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
-                           KL_VERSION );
-
-            clean_str_buffers();
-
-            return rv;
-        }
-
-        int status = add_device( str_buffer[1], str_buffer[2],
-                                 atoi(str_buffer[3]) );
-
-        if ( status == 1 )
-        {
-            *n = snprintf( buf, (34 + strlen(str_buffer[1])),
-                           "KL/%.1f 403 unable to add device %s\n",
-                           KL_VERSION, str_buffer[1] );
-        }
-        else if ( status == 2 )
-        {
-            *n = snprintf( buf, (35 + strlen(str_buffer[1])),
-                           "KL/%.1f 408 device %s already exists\n",
-                           KL_VERSION, str_buffer[1] );
-        }
-        else
-        {
-            *n = snprintf( buf, (26 + strlen(str_buffer[1])),
-                          "KL/%.1f 200 device %s added\n",
-                          KL_VERSION, str_buffer[1] );
-        }
-    }
     // TOGGLE dev_name KL/version#
     else if ( strncasecmp(str_buffer[0], "TOGGLE", 7) == 0 )
     {
@@ -328,10 +293,10 @@ static int parse_server_request(char *buf, int *n)
                            KL_VERSION, str_buffer[1], str_buffer[2] );
         }
     }
-    // LIST KL/version#
-    else if ( strncasecmp(str_buffer[0], "LIST", 5) == 0 )
+    // ADD dev_name mqtt_topic dev_type KL/version#
+    else if ( strncasecmp(str_buffer[0], "ADD", 4) == 0 )
     {
-        if( get_protocol_version(str_buffer[1]) < 0.1 )
+        if( get_protocol_version(str_buffer[4]) < 0.1 )
         {
             *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
                            KL_VERSION );
@@ -341,12 +306,27 @@ static int parse_server_request(char *buf, int *n)
             return rv;
         }
 
-        *n = snprintf( buf, (32 + get_digit_count(get_current_entry_count())),
-                       "KL/%.1f 200 number of devices: %d\n",
-                       KL_VERSION, get_current_entry_count() );
+        int status = add_device( str_buffer[1], str_buffer[2],
+                                 atoi(str_buffer[3]) );
 
-        /* show the current devices to the client */
-        rv = 1;
+        if ( status == 1 )
+        {
+            *n = snprintf( buf, (34 + strlen(str_buffer[1])),
+                           "KL/%.1f 403 unable to add device %s\n",
+                           KL_VERSION, str_buffer[1] );
+        }
+        else if ( status == 2 )
+        {
+            *n = snprintf( buf, (35 + strlen(str_buffer[1])),
+                           "KL/%.1f 408 device %s already exists\n",
+                           KL_VERSION, str_buffer[1] );
+        }
+        else
+        {
+            *n = snprintf( buf, (26 + strlen(str_buffer[1])),
+                          "KL/%.1f 200 device %s added\n",
+                          KL_VERSION, str_buffer[1] );
+        }
     }
     // DELETE dev_name KL/version#
     else if ( strncasecmp(str_buffer[0], "DELETE", 7) == 0 )
@@ -375,6 +355,26 @@ static int parse_server_request(char *buf, int *n)
                           "KL/%.1f 200 device %s deleted\n",
                           KL_VERSION, str_buffer[1] );
         }
+    }
+    // LIST KL/version#
+    else if ( strncasecmp(str_buffer[0], "LIST", 5) == 0 )
+    {
+        if( get_protocol_version(str_buffer[1]) < 0.1 )
+        {
+            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
+                           KL_VERSION );
+
+            clean_str_buffers();
+
+            return rv;
+        }
+
+        *n = snprintf( buf, (32 + get_digit_count(get_current_entry_count())),
+                       "KL/%.1f 200 number of devices: %d\n",
+                       KL_VERSION, get_current_entry_count() );
+
+        /* show the current devices to the client */
+        rv = 1;
     }
     // STATUS dev_name KL/version#
     else if ( strncasecmp(str_buffer[0], "STATUS", 7) == 0 )
@@ -666,6 +666,9 @@ static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type )
         /* add this device to database! */
         to_change[loc] = 5;
 
+        /* increment database count */
+        increment_db_count();
+
         /* set return value to success */
         rv = 0;
     }
@@ -710,6 +713,9 @@ static int delete_device( char *dv_name )
 
             /* delete this device from database! */
             to_change[i] = 6;
+
+            /* decrement database count */
+            decrement_db_count();
 
             /* set return value to success */
             rv = 0;

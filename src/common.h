@@ -73,6 +73,8 @@ int initialize_db( char *sql_buffer, db_data *dat, int *to_chng, char *dv_str,
                    pthread_mutex_t *lck, sem_t *mtx );
 
 const int get_current_entry_count();
+void decrement_db_count();
+void increment_db_count();
 int check_device_type( const int in );
 char *device_type_to_str( const int in );
 int get_digit_count( const int in );
