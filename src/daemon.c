@@ -112,7 +112,8 @@ static int daemonize()
     /* Though if successful, terminate the parent process. */
     if ( pid > 0 )
     {
-        exit( EXIT_SUCCESS );
+        /* So the parent process can free its resource before exiting */
+        return EXIT_FAILURE;
     }
 
     /* Set the child process to become the new session leader. */
@@ -142,7 +143,8 @@ static int daemonize()
     /* Though if successful, terminate the parent process. */
     if ( pid > 0 )
     {
-        exit( EXIT_SUCCESS );
+       /* So the parent process can free its resource before exiting */
+        return EXIT_FAILURE;
     }
 
     /* Set new file permissions. */
