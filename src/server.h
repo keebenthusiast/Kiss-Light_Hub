@@ -13,6 +13,7 @@
 /* Includes in case the compiler complains */
 #include <pthread.h>
 #include <semaphore.h>
+#include <poll.h>
 
 /* To make sure config data type is known about. */
 #include "common.h"
@@ -45,7 +46,8 @@ enum {
 void assign_buffers( char **srvr_buf, char **str_buf,
                      char *tpc, char *application_msg,
                      db_data *data, config *cfg, int *to_chng,
-                     pthread_mutex_t *lck, sem_t *mtx );
+                     pthread_mutex_t *lck, sem_t *mtx,
+                     struct pollfd *czfds );
 
 /*******************************************************************************
  * Server function declarations will reside here.

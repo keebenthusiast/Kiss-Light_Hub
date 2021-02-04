@@ -45,9 +45,10 @@ static config *conf;
 static db_data *memory;
 static int *to_change;
 
-// pointers for various server buffers
+// pointers for various server buffers and fds
 static char **server_buffer;
 static char **str_buffer;
+static struct pollfd *clientfds;
 
 // mqtt buffers
 static char *topic;
@@ -95,7 +96,8 @@ static int delete_device( char *dv_name );
 void assign_buffers( char **srvr_buf, char **str_buf,
                      char *tpc, char *application_msg,
                      db_data *data, config *cfg, int *to_chng,
-                     pthread_mutex_t *lck, sem_t *mtx )
+                     pthread_mutex_t *lck, sem_t *mtx,
+                     struct pollfd *cfds )
 {
     server_buffer = srvr_buf;
     str_buffer = str_buf;
@@ -106,6 +108,7 @@ void assign_buffers( char **srvr_buf, char **str_buf,
     conf = cfg;
     lock = lck;
     mutex = mtx;
+    clientfds = cfds;
 }
 
 /*******************************************************************************
@@ -901,13 +904,6 @@ int server_loop( const int listenfd )
     int count;
     struct sockaddr_in cli_addr;
     socklen_t cli_addr_len = sizeof(cli_addr);
-
-    /**
-     * @todo ... maybe?
-     * This may have to be malloc'd at some point, we'll
-     * have to wait and see
-     */
-    struct pollfd clientfds[POLL_SIZE];
 
     /* first client is the server itself. */
     clientfds[0].fd = listenfd;

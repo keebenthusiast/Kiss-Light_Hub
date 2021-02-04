@@ -22,6 +22,7 @@
 #include <signal.h>
 #include <pthread.h>
 #include <sqlite3.h>
+#include <poll.h>
 
 // local includes
 #include "main.h"
@@ -40,6 +41,7 @@ typedef struct
     // Server buffers
     char **server_buffer;
     char **str_buffer;
+    struct pollfd *clientfds;
 
     // SQL buffers
     char *sql_buffer;
@@ -73,6 +75,9 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
     bfrs->server_buffer = malloc( (POLL_SIZE - 1) * sizeof(char *) );
     bfrs->str_buffer = malloc( ARG_LEN * sizeof(char *) );
     bfrs->changes = (int *)malloc( cfg->max_dev_count * sizeof(int) );
+    bfrs->clientfds = (struct pollfd *)malloc(
+        POLL_SIZE * sizeof(struct pollfd)
+    );
 
     // One big loop to avoid the need for several
     for ( int i = 0; i < cfg->max_dev_count; i++ )
@@ -194,6 +199,9 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
 
     free( bfrs->str_buffer );
     bfrs->str_buffer = NULL;
+
+    free( bfrs->clientfds );
+    bfrs->clientfds = NULL;
 
     free( bfrs->sql_buffer );
     bfrs->sql_buffer = NULL;
@@ -322,7 +330,8 @@ int main( int argc, char **argv )
     sem_init( &mutex, 0, 1 );
     assign_buffers( bfrs->server_buffer, bfrs->str_buffer,
                     bfrs->topic, bfrs->application_message, memory,
-                    cfg, bfrs->changes, &lock, &mutex );
+                    cfg, bfrs->changes, &lock, &mutex,
+                    bfrs->clientfds );
     log_trace( "semaphores initialized" );
 
     /*
