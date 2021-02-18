@@ -37,9 +37,23 @@ And the program should be up and running after the sudo make install step.
 
 Anything that supports mqtt, though [Tasmota](https://tasmota.github.io/docs/) was used in developing this program.
 
-Currently supported types of devices (as of v0.1 and later):
+Currently supported types of devices (as of v0.2 and later):
 
 - Outlets/toggleable devices (like [this](https://templates.blakadder.com/gosund_wp3.html)) (use as dev_type 0)
+
+- Power strip (like [this](https://templates.blakadder.com/gosund_WP9.html)) (use as dev_type 1)
+
+- Dimmable light bulbs (like [this](https://templates.blakadder.com/merkury_MI-BW320-999W.html)) (use as dev_type 2) (***UNTESTED!***)
+
+- CCT light bulbs (like [this](https://templates.blakadder.com/mimoodz_A21.html)) (use as dev_type 3) (***UNTESTED!***)
+
+- RGB light bulb (like [this](https://templates.blakadder.com/moko_YX-L01C-E27.html)) (use as dev_type 4) (***UNTESTED!***)
+
+- RGBW light bulb (like [this](https://templates.blakadder.com/merkury_MI-BW210-999W_QPW92.html)) (use as dev_type 5)
+
+- RGB CCT light bulb (like [this](https://templates.blakadder.com/aigital-LE13.html)) (use as dev_type 6) (***UNTESTED!***)
+
+- Custom Mqtt devices (WORK IN PROGRESS) (use as dev_type 7)
 
 ## Kiss-Light Return Codes
 
@@ -138,7 +152,7 @@ computer ~ $ kl-client status outlet0
 device outlet0 state is currently OFF
 ```
 
-### Change device's states
+### Change device's power states
 
 Set device on or off:
 
@@ -392,5 +406,7 @@ The values in the to_change[] array correspond to the following:
 [LiamBindle](https://github.com/LiamBindle) for mqtt-c library [[repo](https://github.com/LiamBindle/MQTT-C)]
 
 [rxi](https://github.com/rxi) for the log library [[repo](https://github.com/rxi/log.c)]
+
+[zserge](https://github.com/zserge) for the jsmn library [[repo](https://github.com/zserge/jsmn)]
 
 others I may have missed...

@@ -1,3 +1,12 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (C) 2019-2021, Christian Kissinger
+ * kiss-light Hub is released under the New BSD license (see LICENSE).
+ * Go to the project repo here:
+ * https://gitlab.com/kiss-light-project/Kiss-Light_Hub
+ *
+ * Written by: Christian Kissinger
+ */
 
 /*
  * This header is mostly used to define a default port,
@@ -16,13 +25,22 @@
 #include <poll.h>
 
 /* To make sure config data type is known about. */
-#include "common.h"
+#include "config.h"
+#include "database.h"
 #include "mqtt.h"
 
 
-/* Constants */
+/* Useful Constants */
 #define FULL_MESSAGE ((const char *)"KL/0.3 505 client capacity full, " \
                       "try again later\n")
+#define KL_VERSION 0.3
+
+// mqtt topic prefix
+#define STAT         ((const char *)"stat/")
+#define CMND         ((const char *)"cmnd/")
+
+// mqtt topic suffix
+#define RESULT       ((const char *)"/RESULT")
 
 enum {
     // should be at least 2
@@ -35,12 +53,22 @@ enum {
     KEEP_ALIVE = 400,
 
     // for when there are too many clients
-    FULL_MESSAGE_LEN = 50
+    FULL_MESSAGE_LEN = 50,
+
+    // prefix (for topics)
+    STAT_LEN = 6,
+    CMND_LEN = 6,
+
+    // result suffix (for topics)
+    RESULT_LEN = 8
+
 };
 
 /*******************************************************************************
  * Non-specific server-related initializations will reside here.
  * such as: sharing pointers to some buffers
+ *
+ * Also where misc functions will reside as well.
  ******************************************************************************/
 
 void assign_buffers( char **srvr_buf, char **str_buf,
@@ -48,6 +76,9 @@ void assign_buffers( char **srvr_buf, char **str_buf,
                      db_data *data, config *cfg, int *to_chng,
                      pthread_mutex_t *lck, sem_t *mtx,
                      struct pollfd *czfds );
+
+void prepare_topic( const char *prefix, const char *tpc,
+                    char *suffix );
 
 /*******************************************************************************
  * Server function declarations will reside here.

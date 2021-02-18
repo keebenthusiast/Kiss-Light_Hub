@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -33,10 +34,14 @@
 
 // local includes
 #include "server.h"
-#include "log.h"
-#include "common.h"
+#include "config.h"
+#include "database.h"
 #include "daemon.h"
 #include "mqtt.h"
+
+#ifdef DEBUG
+#include "log.h"
+#endif
 
 // pointer to config cfg;
 static config *conf;
@@ -77,6 +82,8 @@ static int delete_device( char *dv_name );
 /*******************************************************************************
  * Non-specific server-related initializations will reside here.
  * such as: sharing pointers to some buffers
+ *
+ * Also where misc functions will reside as well.
  ******************************************************************************/
 
 /**
@@ -109,6 +116,74 @@ void assign_buffers( char **srvr_buf, char **str_buf,
     lock = lck;
     mutex = mtx;
     clientfds = cfds;
+}
+
+/**
+ * @brief Will convert string input to uppercase
+ *
+ * @param str the string to be converted to uppercase.
+ *
+ * @note will return if str equals one of the suffix constants.
+ */
+static void convert_to_upper( char *str )
+{
+    /* Convert to upper case */
+    for ( int i = 0; str[i] != '\0'; i++ )
+    {
+          if ( str[i] >= 'a' && str[i] <= 'z' )
+          {
+              str[i] = toupper(str[i]);
+          }
+    }
+}
+
+/**
+ * @brief Prepare full mqtt topic for the topic buffer.
+ *
+ * @param prefix the prefix of the full mqtt topic, should be 'stat/' for
+ * subscriptions, or 'cmnd/' for sending commands, but could be used for
+ * anything else if desired.
+ * @param tpc the short mqtt topic, the device's identifying mqtt topic.
+ * @param suffix the suffix of the full mqtt topic, should be a commmand,
+ * or if subscribing, use '/RESULT'.
+ *
+ * @note the topic buffer gets memsetted, so use carefully.
+ */
+void prepare_topic( const char *prefix, const char *tpc,
+                    char *suffix )
+{
+    /*
+     * Do a quick check to make sure it
+     * is not a pre-existing suffix string.
+     *
+     * if it is return.
+     */
+
+    if ( strncmp(suffix, RESULT, RESULT_LEN) == 0 )
+    {
+        // skip
+    }
+    else
+    {
+        /* convert suffix to_upper first */
+        convert_to_upper( suffix );
+    }
+
+    /* memset the buffer just in case */
+    memset( topic, 0, conf->topic_buff );
+
+    /* create full topic */
+    int PREFIX = strlen( prefix );
+    int TPC = strlen( tpc );
+    int SUFFIX = strlen( suffix );
+
+    /*
+     * verify total length,
+     * this can truncate so take care.
+     */
+    int len = ((PREFIX + TPC + SUFFIX + 1) < conf->topic_buff ) ?
+                PREFIX + TPC + SUFFIX + 1 : conf->topic_buff;
+    snprintf( topic, len, "%s%s%s", prefix, tpc, suffix );
 }
 
 /*******************************************************************************
@@ -220,7 +295,10 @@ static int parse_server_request(char *buf, int *n)
 
         if ( cl->error != MQTT_OK )
         {
+#ifdef DEBUG
             log_warn( "mqtt error: %s", mqtt_error_str(cl->error) );
+#endif
+
             *n = snprintf( buf, (29 + strlen(mqtt_error_str(cl->error))),
                            "KL/%.1f 500 internal error: %s\n", KL_VERSION,
                            mqtt_error_str(cl->error) );
@@ -473,6 +551,8 @@ static int get_dev_state( const char *dv_name )
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
+    printf( "NOT YET IMPLEMENTED!\n" );
+    /*
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
         if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
@@ -480,7 +560,7 @@ static int get_dev_state( const char *dv_name )
             rv = memory[i].dev_state;
             break;
         }
-    }
+    }*/
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
@@ -507,6 +587,8 @@ static int get_dev_state_mqtt( const char *dv_name )
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
+    printf( "NOT YET IMPLEMENTED!\n" );
+    /*
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
         if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
@@ -516,7 +598,7 @@ static int get_dev_state_mqtt( const char *dv_name )
             loc = i;
             break;
         }
-    }
+    }*/
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
@@ -528,7 +610,9 @@ static int get_dev_state_mqtt( const char *dv_name )
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
+    /*
     rv = memory[loc].dev_state;
+    */
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
@@ -574,7 +658,8 @@ static int change_dev_state( const char *dv_name, const char *msg )
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
-    /* scan for a dev_name match */
+    printf( "NOT YET IMPLEMENTED!\n" );
+    /* scan for a dev_name match *
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
         if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
@@ -583,19 +668,19 @@ static int change_dev_state( const char *dv_name, const char *msg )
             break;
         }
 
-        /* No matches at all? all done */
+        /* No matches at all? all done *
         if ( i == (conf->max_dev_count - 1) )
         {
             rv = 1;
         }
     }
 
-    /* if a device is found, send the command! */
+    /* if a device is found, send the command! *
     if ( !rv )
     {
         mqtt_publish( cl, memory[loc].cmnd_topic, msg, strlen(msg),
                       MQTT_PUBLISH_QOS_0 );
-    }
+    }*/
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
@@ -624,20 +709,22 @@ static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type )
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
-    /* Scan for an empty spot, check for duplicates */
+    printf( "NOT YET IMPLEMENTED!\n" );
+
+    /* Scan for an empty spot, check for duplicates *
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
-        /* Check for a duplicate */
+        /* Check for a duplicate *
         if ( strncasecmp( memory[i].dev_name, dv_name,
              strlen(dv_name)) == 0 )
         {
-            /* duplicate found */
+            /* duplicate found *
             dup = 1;
             rv = 2;
             break;
         }
 
-        /* take the first found free spot */
+        /* take the first found free spot *
         if ( memory[i].dev_name[0] == '\0' && loc == -1 )
         {
             rv = 0;
@@ -645,36 +732,36 @@ static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type )
         }
     }
 
-    /* only add if there does not exist a duplicate */
+    /* only add if there does not exist a duplicate *
     if ( !dup && rv == 0 )
     {
-        /* Copy necessary information */
+        /* Copy necessary information *
         strncpy( memory[loc].dev_name, dv_name, strlen(dv_name) );
         strncpy( memory[loc].mqtt_topic, mqtt_tpc, strlen(mqtt_tpc) );
         memory[loc].dev_type = dv_type;
 
-        /* Also copy full topic as well */
+        /* Also copy full topic as well *
         snprintf( memory[loc].stat_topic, (12 + strlen(mqtt_tpc)),
                   "stat/%s/POWER", mqtt_tpc );
         snprintf( memory[loc].cmnd_topic, (12 + strlen(mqtt_tpc)),
                   "cmnd/%s/POWER", mqtt_tpc );
 
-        /* subscribe to this new device */
+        /* subscribe to this new device *
         mqtt_subscribe( cl, memory[loc].stat_topic, 0 );
 
-        /* request the current state if at all possible */
+        /* request the current state if at all possible *
         mqtt_publish( cl, memory[loc].cmnd_topic, "", 0,
                           MQTT_PUBLISH_QOS_0 );
 
-        /* add this device to database! */
+        /* add this device to database! *
         to_change[loc] = 5;
 
-        /* increment database count */
+        /* increment database count *
         increment_db_count();
 
-        /* set return value to success */
+        /* set return value to success *
         rv = 0;
-    }
+    }*/
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
@@ -698,12 +785,12 @@ static int delete_device( char *dv_name )
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
-    /* scan for a dev_name match */
+    /* scan for a dev_name match *
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
         if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
         {
-            /* Copy current information to old, and memset */
+            /* Copy current information to old, and memset *
             strncpy( memory[i].odev_name, memory[i].dev_name,
                      strlen(memory[i].dev_name) );
             strncpy( memory[i].omqtt_topic, memory[i].mqtt_topic,
@@ -711,22 +798,22 @@ static int delete_device( char *dv_name )
             memset( memory[i].dev_name, 0, DB_DATA_LEN );
             memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
 
-            /* unsubscribe from this device */
+            /* unsubscribe from this device *
             mqtt_unsubscribe( cl, memory[i].stat_topic );
 
-            /* delete this device from database! */
+            /* delete this device from database! *
             to_change[i] = 6;
 
-            /* decrement database count */
+            /* decrement database count *
             decrement_db_count();
 
-            /* set return value to success */
+            /* set return value to success *
             rv = 0;
 
-            /* all done */
+            /* all done *
             break;
         }
-    }
+    }*/
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
@@ -797,8 +884,11 @@ int create_server_socket( const int port )
 
     if ( fd < 0 )
     {
+#ifdef DEBUG
         perror( "error creating socket" );
         log_error( "error creating socket" );
+#endif
+
         return -1;
     }
 
@@ -811,14 +901,20 @@ int create_server_socket( const int port )
     serv_addr.sin_addr.s_addr = htonl( INADDR_ANY );
     //inet_pton( AF_INET, IP_ADDR, &serv_addr.sin_addr );
 
+#ifdef DEBUG
     log_debug( "using port %u for server", (port & 0xffff) );
+#endif
+
     serv_addr.sin_port = htons( port & 0xffff );
 
     /* Bind the fd */
     if ( bind( fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr) ) < 0 )
     {
+#ifdef DEBUG
         perror( "Error binding" );
         log_error( "Error binding server socket" );
+#endif
+
         fd = -1;
     }
 
@@ -923,7 +1019,10 @@ int server_loop( const int listenfd )
 
         if ( nready < 0 )
         {
+#ifdef DEBUG
             log_error( "Error polling in server" );
+#endif
+
             rv = 1;
             break;
         }
@@ -940,20 +1039,27 @@ int server_loop( const int listenfd )
                  */
                 if ( errno == EINTR )
                 {
+#ifdef DEBUG
                     log_info( "Got interrupted with EINTR, continuing." );
+#endif
+
                     continue;
                 }
                 else
                 {
+#ifdef DEBUG
                     log_error( "Error Accepting client in server" );
+#endif
                     rv = 1;
                     break;
                 }
             }
 
+#ifdef DEBUG
             log_info( "Accepted new client %s:%d",
                       inet_ntoa(cli_addr.sin_addr),
                       cli_addr.sin_port );
+#endif
 
             /* Add the client to next available clientfds slot. */
             for ( count = 1; count < POLL_SIZE; count++ )
@@ -982,7 +1088,10 @@ int server_loop( const int listenfd )
              */
             if ( count >= POLL_SIZE )
             {
+#ifdef DEBUG
                 log_warn( "Too many clients reached!" );
+#endif
+
                 write( connfd, FULL_MESSAGE, FULL_MESSAGE_LEN );
                 close( connfd );
             }
@@ -1043,15 +1152,21 @@ int open_nb_socket( const char *addr, const char *port )
     int rv;
     struct addrinfo *p, *servinfo;
 
-    /* get address information */
+#ifdef DEBUG
     log_debug( "using port %s for mqtt", port );
+#endif
+
+    /* get address information */
     rv = getaddrinfo(addr, port, &hints, &servinfo);
     if ( rv != 0 )
     {
+#ifdef DEBUG
         fprintf(stderr, "Failed to open socket (getaddrinfo): %s\n",
         gai_strerror(rv));
         log_error( "Failed to open socket (getaddrinfo): %s\n",
         gai_strerror(rv) );
+#endif
+
         return -1;
     }
 
@@ -1116,8 +1231,11 @@ int initialize_mqtt( struct mqtt_client *client, int *sockfd,
     connect_flags, KEEP_ALIVE );
 
     /* check that we don't have any errors */
-    if (client->error != MQTT_OK) {
+    if (client->error != MQTT_OK)
+    {
+#ifdef DEBUG
         log_error( "mqtt error: %s", mqtt_error_str(client->error) );
+#endif
 
         return 1;
     }
@@ -1151,9 +1269,13 @@ void publish_kl_callback( void** client,
              published->application_message_size );
 
     // for debugging purposes
+#ifdef DEBUG
     printf( "%s : %s\n", topic, app_msg );
+#endif
 
-    /* Find a match! */
+    printf( "NOT YET IMPLEMENTED!" );
+
+    /* Find a match! *
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
         if ( strncasecmp(topic, memory[i].stat_topic,
@@ -1164,22 +1286,22 @@ void publish_kl_callback( void** client,
             break;
         }
 
-        /* no matching topics? for now just quietly ignore. */
+        /* no matching topics? for now just quietly ignore. *
         if ( i == (conf->max_dev_count - 1) )
         {
             topic_found = 0;
         }
     }
 
-    /* if a match is found, change the state */
+    /* if a match is found, change the state *
     if ( topic_found )
     {
-        /* assume the dev_state will change */
+        /* assume the dev_state will change *
         int change_permitted = 1;
 
         /*
          * Now to compare app message
-         */
+         *
         if ( strncasecmp(app_msg, "ON", 3) == 0 )
         {
             memory[memory_location].dev_state = 1;
@@ -1190,20 +1312,23 @@ void publish_kl_callback( void** client,
         }
         else
         {
-            /* If here is reached, don't bother for now */
+            /* If here is reached, don't bother for now *
             /*
              * THIS MAY NEED TO BE REVISED
              * TO SUPPORT RGB LIGHTS... IF
              * I (Christian) DECIDE TO SUPPORT THOSE.
-             */
+             *
+#ifdef DEBUG
             log_warn( "Detected something different from topic %s : %s",
                       topic, app_msg );
+#endif
+
             change_permitted = 0;
         }
 
         if ( change_permitted )
         {
-            /* make sure a change isn't already staged */
+            /* make sure a change isn't already staged *
             switch( to_change[memory_location] )
             {
                 // Only state needs to be updated, continue
@@ -1252,21 +1377,29 @@ void publish_kl_callback( void** client,
                 case 4:
                 case 5:
                 case 6:
-                    /* ignore, leave value alone */
+                {
+                    /* ignore, leave value alone *
+#ifdef DEBUG
                     log_warn( "Found case %d", to_change[memory_location] );
+#endif
+
                     break;
+                }
 
                 default:
                 {
+#ifdef DEBUG
                     log_error( "Reached the default case which" \
                                " shouldn't happen" );
+#endif
+
                     break;
                 }
             }
         }
     }
 
-    /* memset topic and app message buffers for later use */
+    /* memset topic and app message buffers for later use *
     memset( topic, 0, conf->topic_buff );
     memset( app_msg, 0, conf->app_msg_buff );
 

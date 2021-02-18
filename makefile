@@ -4,16 +4,18 @@ CFLAGS = -g -Wall
 LIBS = -lsqlite3 -pthread -lrt
 
 _DEPS = common.h daemon.h ini.h \
-log.h server.h main.h mqtt.h mqtt_pal.h
+log.h server.h main.h mqtt.h mqtt_pal.h \
+statejson.h jsmn.h
 DEPS = $(patsubst %,$(SRC)/%,$(_DEPS))
 
 _OBJ = common.o log.o server.o \
-daemon.o ini.o main.o mqtt.o mqtt_pal.o
+daemon.o ini.o main.o mqtt.o mqtt_pal.o \
+statejson.o
 OBJ = $(patsubst %,$(SRC)/%,$(_OBJ))
 
 all: kisslight
 
-%.o: %.cpp $(DEPS)
+%.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 kisslight: $(OBJ)

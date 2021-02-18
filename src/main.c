@@ -21,16 +21,20 @@
 #include <stdint.h>
 #include <signal.h>
 #include <pthread.h>
-#include <sqlite3.h>
 #include <poll.h>
 
 // local includes
 #include "main.h"
-#include "common.h"
+#include "args.h"
+#include "config.h"
+#include "database.h"
 #include "daemon.h"
 #include "server.h"
 #include "mqtt.h"
+
+#ifdef DEBUG
 #include "log.h"
+#endif
 
 /*
  * A struct to keep track of various buffers,
@@ -45,6 +49,7 @@ typedef struct
 
     // SQL buffers
     char *sql_buffer;
+    char *sqlite_buffer;
     char *dev_type_str;
     int *changes;
 
@@ -55,6 +60,26 @@ typedef struct
     char *application_message;
 
 } buffers;
+
+
+/*
+ *
+ *  PLEASE REMOVE ASAP!
+ *
+ *
+ *
+void assign_buffers( char **srvr_buf, char **str_buf,
+                     char *tpc, char *application_msg,
+                     db_data *data, config *cfg, int *to_chng,
+                     pthread_mutex_t *lck, sem_t *mtx,
+                     struct pollfd *czfds )
+{
+}
+
+void close_socket()
+{
+}
+
 
 /**
  * @brief Allocate buffers.
@@ -69,8 +94,10 @@ typedef struct
  */
 static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
 {
+#ifdef DEBUG
     log_trace( "allocating buffers" );
     log_debug( "allocating server buffers" );
+#endif
 
     bfrs->server_buffer = malloc( (POLL_SIZE - 1) * sizeof(char *) );
     bfrs->str_buffer = malloc( ARG_LEN * sizeof(char *) );
@@ -104,22 +131,31 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
         memset( memory[i].dev_name, 0, DB_DATA_LEN );
         memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
         memory[i].dev_type = -1;
-        memory[i].dev_state = -1;
+        memset( memory[i].dev_state, 0, DV_STATE_LEN );
+        memset( memory[i].valid_cmnds, 0, DB_CMND_LEN );
 
-        memset( memory[i].cmnd_topic, 0, DB_DATA_LEN );
-        memset( memory[i].stat_topic, 0, DB_DATA_LEN );
 
         memset( memory[i].odev_name, 0, DB_DATA_LEN );
         memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
     }
 
+#ifdef DEBUG
     log_debug( "allocating sql buffer" );
+#endif
+
     bfrs->sql_buffer = (char *)malloc( cfg->db_buff * sizeof(char) );
     memset( bfrs->sql_buffer, 0, cfg->db_buff );
+    bfrs->sqlite_buffer = (char *)malloc(
+        SQLITE_BUFFER_LEN * sizeof(char)
+    );
+    memset( bfrs->sqlite_buffer, 0, SQLITE_BUFFER_LEN );
     bfrs->dev_type_str = (char *)malloc( DEV_TYPE_LEN * sizeof(char) );
     memset( bfrs->dev_type_str, 0, DEV_TYPE_LEN );
 
+#ifdef DEBUG
     log_debug( "allocating mqtt buffers" );
+#endif
+
     bfrs->send_buffer = (uint8_t *)malloc( cfg->snd_buff * sizeof(uint8_t) );
     memset( bfrs->send_buffer, 0, cfg->snd_buff );
     bfrs->receive_buffer = (uint8_t *)malloc(
@@ -133,7 +169,9 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
     );
     memset( bfrs->application_message, 0, cfg->app_msg_buff );
 
+#ifdef DEBUG
     log_trace( "all buffers allocated" );
+#endif
 }
 
 /**
@@ -150,9 +188,11 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
 static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
                      struct mqtt_client *client )
 {
+#ifdef DEBUG
     log_trace( "freeing allocated memory" );
-
     log_debug( "Freeing config data allocated" );
+#endif
+
     /* Clean up allocated strings */
     if ( cfg->db_loc != NULL )
     {
@@ -170,9 +210,10 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
     free( cfg );
     cfg = NULL;
 
+#ifdef DEBUG
     log_debug( "config data freed" );
-
     log_debug( "freeing buffers" );
+#endif
 
     /* Now to free the memory allocated by buffers */
     int len = (ARG_LEN > (POLL_SIZE - 1)) ? ARG_LEN : (POLL_SIZE - 1);
@@ -206,6 +247,9 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
     free( bfrs->sql_buffer );
     bfrs->sql_buffer = NULL;
 
+    free( bfrs->sqlite_buffer );
+    bfrs->sqlite_buffer = NULL;
+
     free( bfrs->dev_type_str );
     bfrs->dev_type_str = NULL;
 
@@ -226,21 +270,33 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
 
     free( bfrs );
     bfrs = NULL;
+
+#ifdef DEBUG
     log_debug( "buffers freed" );
+#endif
 
     if ( client != NULL )
     {
+
+#ifdef DEBUG
         log_debug( "Freeing mqtt_client struct" );
+#endif
         free( client );
         client = NULL;
+
+#ifdef DEBUG
         log_debug( "mqtt_client struct freed" );
+#endif
+
     }
 
+#ifdef DEBUG
     log_trace( "memory freed, closing logger" );
 
     /* Finally, close log file */
     fclose( lg );
-
+    lg = NULL;
+#endif
 }
 
 /**
@@ -249,18 +305,24 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
 int main( int argc, char **argv )
 {
     /*
-     * Step 1: Initialize logger
+     * Step 1: Initialize logger (assuming DEBUG is defined)
      */
+
+#ifdef DEBUG
     FILE *lg = fopen( LOGLOCATION, "w" );
 
     if ( lg == NULL )
     {
         fprintf( stderr, "Failed to open log file %s\n", LOGLOCATION );
+
+        fclose( lg );
+
         return 1;
     }
 
     log_add_fp(lg, DEBUG_LEVEL);
     log_trace( "Kiss-Light Logger initialized");
+#endif
 
     /*
      * Step 2: Initialize configuration parser
@@ -269,15 +331,20 @@ int main( int argc, char **argv )
 
     if ( initialize_conf_parser(cfg) != 0 )
     {
+#ifdef DEBUG
         log_error( "Unable to initialize configuration parser, exiting..." );
+
+        fclose( lg );
+#endif
 
         free( cfg );
 
-        fclose( lg );
-
         return 1;
     }
+
+#ifdef DEBUG
     log_trace( "Configuration parser initialized" );
+#endif
 
     /* Step 3: Analyze command line args
      * (should override config if specified to)
@@ -287,7 +354,10 @@ int main( int argc, char **argv )
 
     if ( arg_result )
     {
+
+#ifdef DEBUG
         log_debug( "Failed to process arg, exiting..." );
+#endif
 
         /* Clean up as this is a big deal. */
         if ( cfg->db_loc != NULL )
@@ -304,11 +374,16 @@ int main( int argc, char **argv )
 
         free( cfg );
 
+#ifdef DEBUG
         fclose( lg );
+#endif
 
         return 1;
     }
+
+#ifdef DEBUG
     log_trace( "args processed" );
+#endif
 
     /* Handle signals as needed */
     signal( SIGINT, handle_signal );
@@ -323,7 +398,10 @@ int main( int argc, char **argv )
     /*
      * Step 5: Initialize mutex semaphores, share info to server part of code
      */
+#ifdef DEBUG
     log_trace( "Initializing semaphores and copying data to server code" );
+#endif
+
     pthread_mutex_t lock;
     sem_t mutex;
     pthread_mutex_init( &lock, NULL );
@@ -332,25 +410,58 @@ int main( int argc, char **argv )
                     bfrs->topic, bfrs->application_message, memory,
                     cfg, bfrs->changes, &lock, &mutex,
                     bfrs->clientfds );
+#ifdef DEBUG
     log_trace( "semaphores initialized" );
+#endif
 
     /*
      * Step 6: Initialize sqlite functions
      */
+#ifdef DEBUG
     log_trace( "Initialize sqlite and fill up RAM" );
-    int status = initialize_db( bfrs->sql_buffer, memory, bfrs->changes,
-                                bfrs->dev_type_str, &lock, &mutex );
+#endif
 
-    if ( status < 0 )
+    sqlite3 *db;
+    int status;
+
+    status = sqlite3_open( cfg->db_loc, &db );
+
+    if ( status )
     {
-        log_error( "Unable to open sqlite3 file, exiting..." );
+#ifdef DEBUG
+        log_error( "Unable to open Database %s", sqlite3_errmsg(db) );
         cleanup( lg, bfrs, cfg, memory, NULL );
+#else
+        cleanup( NULL, bfrs, cfg, memory, NULL );
+#endif
+        sqlite3_close( db );
+
         return 1;
     }
-    else if ( status )
+    else
     {
+#ifdef DEBUG
+        log_trace( "Database opened successfully" );
+#endif
+    }
+
+    /* Use specified buffer for sqlite3 usage */
+    sqlite3_config( SQLITE_CONFIG_HEAP, bfrs->sqlite_buffer,
+                    SQLITE_BUFFER_LEN, SQLITE_BUFFER_MIN );
+
+    status = initialize_db( cfg, db, bfrs->sql_buffer, memory, bfrs->changes,
+                            bfrs->dev_type_str, &lock, &mutex );
+
+    if ( status )
+    {
+#ifdef DEBUG
         log_error( "Some SQL error occurred, exiting..." );
         cleanup( lg, bfrs, cfg, memory, NULL );
+#else
+        cleanup( NULL, bfrs, cfg, memory, NULL );
+#endif
+        sqlite3_close( db );
+
         return 1;
     }
 
@@ -363,17 +474,26 @@ int main( int argc, char **argv )
 
     if ( sockfd_mqtt < 0 )
     {
+#ifdef DEBUG
         perror("Failed to open socket: ");
         log_error( "Failed to open socket" );
 
         /* Cleanup and exit, this is a big deal. */
         cleanup( lg, bfrs, cfg, memory, NULL );
+#else
+        cleanup( NULL, bfrs, cfg, memory, NULL );
+#endif
+        sqlite3_close( db );
+
         return 1;
 
     }
+
+#ifdef DEBUG
     log_trace( "mqtt socket established" );
 
     log_debug( "Initializing mqtt client" );
+#endif
 
     struct mqtt_client *client = (struct mqtt_client*)malloc(
         sizeof(struct mqtt_client)
@@ -384,8 +504,14 @@ int main( int argc, char **argv )
 
     if ( mqtt_stat )
     {
+#ifdef DEBUG
         log_error( "Failed to initialize MQTT server, exiting..." );
         cleanup(lg, bfrs, cfg, memory, client );
+#else
+        cleanup( NULL, bfrs, cfg, memory, client );
+#endif
+        sqlite3_close( db );
+
         return 1;
     }
 
@@ -399,9 +525,12 @@ int main( int argc, char **argv )
             break;
         }
 
-        mqtt_subscribe( client, memory[i].stat_topic, 0 );
+        prepare_topic( STAT, memory[i].mqtt_topic, (char *)RESULT );
+        mqtt_subscribe( client, bfrs->topic, 0 );
 
-        log_info( "subscribed to %s", memory[i].stat_topic );
+#ifdef DEBUG
+        log_info( "subscribed to %s", bfrs->topic );
+#endif
 
         count++;
     }
@@ -414,7 +543,9 @@ int main( int argc, char **argv )
     pthread_t mqtt_client_thr;
     if( pthread_create(&mqtt_client_thr, NULL, client_refresher, client) )
     {
+#ifdef DEBUG
         log_error( "Failed to start mqtt client daemon, exiting..." );
+#endif
 
         if (sockfd_mqtt != -1 )
         {
@@ -422,7 +553,13 @@ int main( int argc, char **argv )
         }
 
         /* Cleanup and exit, this is a big deal. */
+#ifdef DEBUG
         cleanup( lg, bfrs, cfg, memory, client );
+#else
+        cleanup( NULL, bfrs, cfg, memory, client );
+#endif
+        sqlite3_close( db );
+
         return 1;
     }
 
@@ -430,7 +567,10 @@ int main( int argc, char **argv )
     pthread_t database_thr;
     if ( pthread_create(&database_thr, NULL, db_updater, NULL) )
     {
+
+#ifdef DEBUG
         log_error( "Failed to start db updater, exiting..." );
+#endif
 
         /* Kill this thread as it will no longer be required */
         pthread_cancel(mqtt_client_thr);
@@ -442,7 +582,13 @@ int main( int argc, char **argv )
         }
 
         /* Cleanup and exit, this is a big deal. */
+#ifdef DEBUG
         cleanup( lg, bfrs, cfg, memory, client );
+#else
+        cleanup( NULL, bfrs, cfg, memory, client );
+#endif
+        sqlite3_close( db );
+
         return 1;
     }
 
@@ -457,29 +603,42 @@ int main( int argc, char **argv )
      */
     if ( ! (sockfd < 0) )
     {
+#ifdef DEBUG
         log_trace( "server socket established" );
-
+#endif
         /*
          * Time to Poll and run the server's network loop.
          */
         if ( listen( sockfd, LISTEN_QUEUE ) < 0 )
         {
+#ifdef DEBUG
             log_error( "Error listening" );
+#endif
 
             pthread_cancel(mqtt_client_thr);
             pthread_cancel(database_thr);
             pthread_join(mqtt_client_thr, NULL);
             pthread_join(database_thr, NULL);
 
+#ifdef DEBUG
             cleanup( lg, bfrs, cfg, memory, client );
+#else
+            cleanup( NULL, bfrs, cfg, memory, client );
+#endif
+            sqlite3_close( db );
 
             return 1;
         }
 
+#ifdef DEBUG
         log_trace( "Going into loop" );
+#endif
+
         server_loop( sockfd );
 
+#ifdef DEBUG
         log_trace( "server exiting" );
+#endif
 
         pthread_cancel(mqtt_client_thr);
         pthread_cancel(database_thr);
@@ -490,8 +649,10 @@ int main( int argc, char **argv )
     }
     else
     {
+#ifdef DEBUG
         perror("Error creating sockfd");
         log_error( "Error creating sockfd" );
+#endif
 
         pthread_cancel(mqtt_client_thr);
         pthread_cancel(database_thr);
@@ -499,7 +660,13 @@ int main( int argc, char **argv )
         pthread_join(database_thr, NULL);
 
         /* Cleanup and exit, this is a big deal. */
+#ifdef DEBUG
         cleanup( lg, bfrs, cfg, memory, client );
+#else
+        cleanup( NULL, bfrs, cfg, memory, client );
+#endif
+        sqlite3_close( db );
+
         return 1;
     }
 
@@ -507,7 +674,14 @@ int main( int argc, char **argv )
      * From this point, it can be safely assumed that
      * if this point is reached, it is time to wrap up.
      */
+#ifdef DEBUG
     cleanup( lg, bfrs, cfg, memory, client );
+    //cleanup( lg, bfrs, cfg, memory, NULL );
+#else
+    cleanup( NULL, bfrs, cfg, memory, client );
+    //cleanup( NULL, bfrs, cfg, memory, NULL );
+#endif
+    sqlite3_close( db );
 
     return 0;
 }
