@@ -44,7 +44,6 @@ typedef struct
 {
     // Server buffers
     char **server_buffer;
-    char **str_buffer;
     struct pollfd *clientfds;
 
     // SQL buffers
@@ -60,26 +59,6 @@ typedef struct
     char *application_message;
 
 } buffers;
-
-
-/*
- *
- *  PLEASE REMOVE ASAP!
- *
- *
- *
-void assign_buffers( char **srvr_buf, char **str_buf,
-                     char *tpc, char *application_msg,
-                     db_data *data, config *cfg, int *to_chng,
-                     pthread_mutex_t *lck, sem_t *mtx,
-                     struct pollfd *czfds )
-{
-}
-
-void close_socket()
-{
-}
-
 
 /**
  * @brief Allocate buffers.
@@ -100,7 +79,6 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
 #endif
 
     bfrs->server_buffer = malloc( (POLL_SIZE - 1) * sizeof(char *) );
-    bfrs->str_buffer = malloc( ARG_LEN * sizeof(char *) );
     bfrs->changes = (int *)malloc( cfg->max_dev_count * sizeof(int) );
     bfrs->clientfds = (struct pollfd *)malloc(
         POLL_SIZE * sizeof(struct pollfd)
@@ -109,14 +87,6 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
     // One big loop to avoid the need for several
     for ( int i = 0; i < cfg->max_dev_count; i++ )
     {
-        if ( i < ARG_LEN )
-        {
-            bfrs->str_buffer[i] = (char *)malloc(
-                ARG_BUF_LEN * sizeof(char)
-            );
-            memset( bfrs->str_buffer[i], 0, ARG_BUF_LEN );
-        }
-
         if ( i < (POLL_SIZE - 1) )
         {
             bfrs->server_buffer[i] = (char *)malloc(
@@ -216,20 +186,11 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
 #endif
 
     /* Now to free the memory allocated by buffers */
-    int len = (ARG_LEN > (POLL_SIZE - 1)) ? ARG_LEN : (POLL_SIZE - 1);
+    int len = (POLL_SIZE - 1);
     for ( int i = 0; i < len; i++ )
     {
-        if ( i < ARG_LEN )
-        {
-            free( bfrs->str_buffer[i] );
-            bfrs->str_buffer[i] = NULL;
-        }
-
-        if ( i < (POLL_SIZE - 1) )
-        {
-            free( bfrs->server_buffer[i] );
-            bfrs->server_buffer[i] = NULL;
-        }
+        free( bfrs->server_buffer[i] );
+        bfrs->server_buffer[i] = NULL;
     }
 
     free( memory );
@@ -237,9 +198,6 @@ static void cleanup( FILE *lg, buffers *bfrs, config *cfg, db_data *memory,
 
     free( bfrs->server_buffer );
     bfrs->server_buffer = NULL;
-
-    free( bfrs->str_buffer );
-    bfrs->str_buffer = NULL;
 
     free( bfrs->clientfds );
     bfrs->clientfds = NULL;
@@ -406,8 +364,8 @@ int main( int argc, char **argv )
     sem_t mutex;
     pthread_mutex_init( &lock, NULL );
     sem_init( &mutex, 0, 1 );
-    assign_buffers( bfrs->server_buffer, bfrs->str_buffer,
-                    bfrs->topic, bfrs->application_message, memory,
+    assign_buffers( bfrs->server_buffer, bfrs->topic,
+                    bfrs->application_message, memory,
                     cfg, bfrs->changes, &lock, &mutex,
                     bfrs->clientfds );
 #ifdef DEBUG

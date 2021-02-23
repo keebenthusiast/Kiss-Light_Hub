@@ -13,6 +13,11 @@
 
 /* Constants */
 
+enum {
+    TOK_LEN = 64,
+    JSON_LEN = 512
+};
+
 /* prototypes */
 int find_jsmn_str( char *dst, const char *property, const char *state );
 int replace_jsmn_property( char *state, const char *nstate );

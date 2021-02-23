@@ -59,7 +59,11 @@ static int insert_db_entry( const char *dev_name, const char *mqtt_topic,
 static int delete_db_entry( const char *dev_name, const char *mqtt_topic );
 static int update_db_dev_state( const char *dev_name, const char *mqtt_topic,
                                 const char *state );
-
+static int update_db_dev_name( const char *odev_name, const char *ndev_name,
+                               const char *mqtt_topic );
+static int update_db_mqtt_topic( const char *omqtt_topic,
+                                 const char *nmqtt_topic,
+                                 const char *dev_name );
 
 /**
  * @brief Function to get current entry count
@@ -173,10 +177,6 @@ char *device_type_to_str( const int in )
         case 7:
             strncpy( dev_type_str, DEV_TYPE7, DEV_TYPE7_LEN );
             break;
-
-        default:
-            strncpy( dev_type_str, DEV_TYPEX, DEV_TYPEX_LEN );
-            break;
     }
 
     return dev_type_str;
@@ -209,6 +209,32 @@ int get_digit_count( const int in )
     }
 
     return count;
+}
+
+/**
+ * @brief For device type 1, which is the powerstrip,
+ * create a valid command string.
+ *
+ * @param dst where commands will be stored.
+ * @param count the number of individual ports to include.
+ */
+void powerstrip_cmnd_cat( char *dst, const int count )
+{
+    char tmp[DB_DATA_LEN];
+
+    for ( int i = 0; i <= count; i++ )
+    {
+        if ( i == count )
+        {
+            snprintf( tmp, DEV_TYPE1B_CMD_LEN, DEV_TYPE1B_CMD, i );
+            strncat( dst, tmp, DEV_TYPE1B_CMD_LEN );
+        }
+        else
+        {
+            snprintf( tmp, DEV_TYPE1A_CMD_LEN, DEV_TYPE1A_CMD, i );
+            strncat( dst, tmp, DEV_TYPE1A_CMD_LEN );
+        }
+    }
 }
 
 /**
@@ -538,14 +564,13 @@ static int delete_db_entry( const char *dev_name, const char *mqtt_topic )
 
 /**
  * @brief This has the job of updating a dev_state
- * given both hdev_name and mqtt_topic.
+ * given both dev_name and mqtt_topic.
  *
  * @param dev_name the device name of the device that changed states.
  * @param mqtt_topic the mqtt topic of the device that changed states.
  * @param new_state the new state in json format.
  *
  * @note Returns nonzero upon error.
- *
  */
 static int update_db_dev_state( const char *dev_name, const char *mqtt_topic,
                                 const char *state )
@@ -573,6 +598,79 @@ static int update_db_dev_state( const char *dev_name, const char *mqtt_topic,
 }
 
 /**
+ * @brief This function updates dev_name, having mqtt_topic
+ * passed in for added reliability.
+ *
+ * @param odev_name the old device name.
+ * @param ndev_name the new device name.
+ * @param mqtt_topic the mqtt_topic associated with the old device name.
+ *
+ * @note Returns nonzero upon error.
+ */
+static int update_db_dev_name( const char *odev_name, const char *ndev_name,
+                               const char *mqtt_topic )
+{
+    int odev_name_len = strlen( odev_name );
+    int ndev_name_len = strlen( ndev_name );
+    int mqtt_tpc_len = strlen( mqtt_topic );
+
+    snprintf( sql_buf, (NAME_QUERY_LEN + odev_name_len + mqtt_tpc_len +
+              ndev_name_len), NAME_QUERY, ndev_name, odev_name, mqtt_topic );
+
+    int db_ret = execute_db_query( sql_buf );
+
+    if ( !db_ret )
+    {
+#ifdef DEBUG
+        log_trace( "entry %s dev_name updated to %s", odev_name,
+        ndev_name );
+#endif
+    }
+
+     /* memset the sql buffer */
+    memset( sql_buf, 0, conf->db_buff );
+
+    return db_ret;
+}
+
+/**
+ * @brief This function updates mqtt_topic, having dev_name passed in
+ * for added reliability.
+ *
+ * @param omqtt_topic the device's old mqtt topic.
+ * @param nmqtt_topic the device's new mqtt topic.
+ * @param dev_name the dev_name associated with the mqtt topic change.
+ *
+ * @note Returns nonzero upon error.
+ */
+static int update_db_mqtt_topic( const char *omqtt_topic,
+                                 const char *nmqtt_topic,
+                                 const char *dev_name )
+{
+    int omqtt_tpc_len = strlen( omqtt_topic );
+    int nmqtt_tpc_len = strlen( nmqtt_topic );
+    int dev_name_len = strlen( dev_name );
+
+    snprintf( sql_buf, (NAME_QUERY_LEN + omqtt_tpc_len + nmqtt_tpc_len +
+              dev_name_len), MQTT_QUERY, nmqtt_topic, dev_name, omqtt_topic );
+
+    int db_ret = execute_db_query( sql_buf );
+
+    if ( !db_ret )
+    {
+#ifdef DEBUG
+        log_trace( "entry %s mqtt_topic %s updated to %s", dev_name,
+                   omqtt_topic, nmqtt_topic );
+#endif
+    }
+
+     /* memset the sql buffer */
+    memset( sql_buf, 0, conf->db_buff );
+
+    return db_ret;
+}
+
+/**
  * @brief the data refresher which updates database
  * at every roughly 5 seconds, if there is
  * a change to be made of course.
@@ -589,9 +687,129 @@ void *db_updater( void* args )
         sem_wait( mutex );
         pthread_mutex_lock( lock );
 
-        /*
-         * Critical Section
-         */
+        for ( int i = 0; i < conf->max_dev_count; i++ )
+        {
+            /* just skip if there are no changes to make. */
+            if ( to_change[i] < 0 )
+            {
+                continue;
+            }
+
+            switch( to_change[i] )
+            {
+                // No changes needed
+                case -1:
+                    /* Do Nothing */
+                    break;
+
+                // Update i's dev_state
+                case 0:
+                {
+                    update_db_dev_state( memory[i].dev_name,
+                                         memory[i].mqtt_topic,
+                                         memory[i].dev_state );
+
+                    /* nothing to reset, so continue */
+                    break;
+                }
+
+                // Update i's dev_name
+                case 1:
+                {
+                    update_db_dev_name( memory[i].odev_name,
+                                        memory[i].dev_name,
+                                        memory[i].mqtt_topic );
+
+                    /* reset for later use */
+                    memset( memory[i].odev_name, 0, DB_DATA_LEN );
+
+                    break;
+                }
+
+                // Update i's mqtt_topic
+                case 2:
+                {
+                    update_db_mqtt_topic( memory[i].omqtt_topic,
+                                          memory[i].mqtt_topic,
+                                          memory[i].dev_name );
+                    /* reset for later use */
+                    memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+
+                    break;
+                }
+
+                // Update all (makes it easier)
+                case 3:
+                {
+                    /* Update the dev_mame */
+                    update_db_dev_name( memory[i].odev_name,
+                                        memory[i].dev_name,
+                                        memory[i].mqtt_topic );
+
+                    /* Update the mqtt_topic */
+                    update_db_mqtt_topic( memory[i].omqtt_topic,
+                                          memory[i].mqtt_topic,
+                                          memory[i].dev_name );
+
+                    /* Finally update the dev_state */
+                    update_db_dev_state( memory[i].dev_name,
+                                         memory[i].mqtt_topic,
+                                         memory[i].dev_state );
+
+                    /* reset for later use */
+                    memset( memory[i].odev_name, 0, DB_DATA_LEN );
+                    memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+
+                    break;
+                }
+
+                // Add new device that's in i
+                case 4:
+                {
+                    insert_db_entry( memory[i].dev_name, memory[i].mqtt_topic,
+                                     memory[i].dev_type, memory[i].dev_state,
+                                     memory[i].valid_cmnds );
+
+                    /* update the db_len variable */
+                    get_db_len();
+
+                    break;
+                }
+
+                // remove i's device
+                case 5:
+                {
+                    delete_db_entry( memory[i].odev_name,
+                                     memory[i].omqtt_topic );
+
+                    /* update the deb_len variable */
+                    get_db_len();
+
+                    /*
+                     * dev_name and mqtt topic already reset, so
+                     * reset the reset the rest for later use.
+                     */
+                    memory[i].dev_type = -1;
+                    memset( memory[i].dev_state, 0, DV_STATE_LEN );
+                    memset( memory[i].valid_cmnds, 0, DB_CMND_LEN );
+                    memset( memory[i].odev_name, 0, DB_DATA_LEN );
+                    memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+
+                    break;
+                }
+
+                default:
+                {
+#ifdef DEBUG
+                    log_warn( "default case reached, unknown option %d",
+                               to_change[i] );
+#endif
+                    break;
+                }
+            }
+
+            to_change[i] = -1;
+        }
 
         pthread_mutex_unlock( lock );
         sem_post( mutex );

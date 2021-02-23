@@ -52,7 +52,6 @@ static int *to_change;
 
 // pointers for various server buffers and fds
 static char **server_buffer;
-static char **str_buffer;
 static struct pollfd *clientfds;
 
 // mqtt buffers
@@ -60,7 +59,7 @@ static char *topic;
 static char *app_msg;
 
 // mqtt client pointer
- struct mqtt_client *cl;
+struct mqtt_client *cl;
 
 // System pointers
 static pthread_mutex_t *lock;
@@ -73,11 +72,12 @@ static sem_t *mutex;
 static unsigned int closeSocket = 0;
 
 /* local prototypes as needed */
-static int get_dev_state( const char *dv_name );
-static int get_dev_state_mqtt( const char *dv_name );
-static int change_dev_state( const char *dv_name, const char *msg );
-static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type );
+static int add_device( const char *dv_name, const char *mqtt_tpc,
+                       const int dv_type, const char *vld_cmds );
 static int delete_device( char *dv_name );
+static int change_dev_state( const char *dv_name, const char *cmd, char *msg );
+static int toggle_dev_power( const char *dv_name, const char *msg );
+static void dump_devices( int fd, const int n );
 
 /*******************************************************************************
  * Non-specific server-related initializations will reside here.
@@ -100,14 +100,12 @@ static int delete_device( char *dv_name );
  * @param mtx the semaphore mutex lock
  *
  */
-void assign_buffers( char **srvr_buf, char **str_buf,
-                     char *tpc, char *application_msg,
+void assign_buffers( char **srvr_buf, char *tpc, char *application_msg,
                      db_data *data, config *cfg, int *to_chng,
                      pthread_mutex_t *lck, sem_t *mtx,
                      struct pollfd *cfds )
 {
     server_buffer = srvr_buf;
-    str_buffer = str_buf;
     topic = tpc;
     app_msg = application_msg;
     memory = data;
@@ -147,7 +145,8 @@ static void convert_to_upper( char *str )
  * @param suffix the suffix of the full mqtt topic, should be a commmand,
  * or if subscribing, use '/RESULT'.
  *
- * @note the topic buffer gets memsetted, so use carefully.
+ * @note the topic buffer gets memsetted, so use carefully. It is also
+ * not thread safe, so make sure to implement semaphores when using.
  */
 void prepare_topic( const char *prefix, const char *tpc,
                     char *suffix )
@@ -156,14 +155,11 @@ void prepare_topic( const char *prefix, const char *tpc,
      * Do a quick check to make sure it
      * is not a pre-existing suffix string.
      *
-     * if it is return.
+     * if it is skip.
      */
 
-    if ( strncmp(suffix, RESULT, RESULT_LEN) == 0 )
-    {
-        // skip
-    }
-    else
+    if ( ! (strncmp(suffix, RESULT, RESULT_LEN) == 0)
+        || ! (strncmp(suffix, STATE, STATE_LEN) == 0) )
     {
         /* convert suffix to_upper first */
         convert_to_upper( suffix );
@@ -173,33 +169,78 @@ void prepare_topic( const char *prefix, const char *tpc,
     memset( topic, 0, conf->topic_buff );
 
     /* create full topic */
-    int PREFIX = strlen( prefix );
-    int TPC = strlen( tpc );
-    int SUFFIX = strlen( suffix );
+    int pfx = strlen( prefix );
+    int topc = strlen( tpc );
+    int sfx = strlen( suffix );
 
-    /*
-     * verify total length,
-     * this can truncate so take care.
-     */
-    int len = ((PREFIX + TPC + SUFFIX + 1) < conf->topic_buff ) ?
-                PREFIX + TPC + SUFFIX + 1 : conf->topic_buff;
-    snprintf( topic, len, "%s%s%s", prefix, tpc, suffix );
+    if ( suffix[0] != '/' )
+    {
+        /*
+         * verify total length,
+         * this can truncate so take care.
+         *
+         * I increment the total length + 1
+         * to take into account the full length.
+         */
+        int len = ((pfx + topc + sfx + 2) < conf->topic_buff ) ?
+                    pfx + topc + sfx + 2 : conf->topic_buff;
+
+        snprintf( topic, len, "%s%s/%s", prefix, tpc, suffix );
+    }
+    else
+    {
+        int len = ((pfx + topc + sfx + 1) < conf->topic_buff ) ?
+                    pfx + topc + sfx + 1 : conf->topic_buff;
+
+        snprintf( topic, len, "%s%s%s", prefix, tpc, suffix );
+    }
+}
+
+/**
+ * @brief Verify that the command is valid given a list
+ * of valid commands associated with a device.
+ *
+ * @param input the input command to compare against the cmnds.
+ * @param cmnds the list of commands to be compared with, delimited by
+ * a comma.
+ *
+ * @note Returns nonzero upon error.
+ *
+ */
+static int verify_command( const char *input, const char *cmnds )
+{
+    int rv = 0;
+
+    /* create temporary copy to keep original in tact. */
+    char tmp_cmnds[DB_CMND_LEN];
+    strncpy( tmp_cmnds, cmnds, strlen(cmnds) + 1 );
+
+    char *tok;
+    tok = strtok(tmp_cmnds, ",");
+
+    while ( tok != 0 )
+    {
+        if ( strncasecmp(input, tok, strlen(input) + 1) == 0 )
+        {
+            rv = 0;
+            break;
+        }
+
+        tok = strtok( 0, "," );
+
+        /* if we made it this far, it is likely not a valid command */
+        if ( tok == 0 )
+        {
+            rv = 1;
+        }
+    }
+
+    return rv;
 }
 
 /*******************************************************************************
  * Everything related to message parsing will reside here.
  ******************************************************************************/
-
-/**
- * @brief clean str_buffer for later use.
- */
-static void clean_str_buffers()
-{
-    for ( int i = 0; i < ARG_LEN; i++ )
-    {
-        memset( str_buffer[i], 0, ARG_BUF_LEN );
-    }
-}
 
 /**
  * @brief Check protocol version.
@@ -218,7 +259,7 @@ static float get_protocol_version(char *buf)
      * check to make sure buf isn't empty and first part equals KL or
      * something along those lines
      */
-    if ( strcmp(buf, "") == 0 || strncasecmp( buf, "KL", 2) != 0 )
+    if ( strncasecmp( buf, "KL", 2) != 0 )
     {
         return -1.0;
     }
@@ -258,273 +299,419 @@ static float get_protocol_version(char *buf)
  * @param buf the buffer to be analyzed, THEN MODIFIED.
  * @param n the buffer length, modified when buf is modified.
  *
- * @note returns -1 to exit,
- * returns 1 to dump current setups
- * returns 0 for all is good.
+ * @note Returns -1 when a user requests to quit,
+ * Returns 1 for a list request, and Returns 0 otherwise.
  */
-static int parse_server_request(char *buf, int *n)
+static int parse_server_request( char *buf, int *n )
 {
-    int rv = 0; /* the return value */
+    /* return value, should be zero unless user wants to quit */
+    int rv = 0;
 
-    /* process up to 5 arguments passed in */
-    sscanf( buf, "%s %s %s %s %s", str_buffer[0], str_buffer[1],
-            str_buffer[2], str_buffer[3], str_buffer[4] );
+    /* Create tmporary buffer */
+    char tmp[conf->buffer_size];
+    strncpy( tmp, buf, strlen(buf) + 1 );
 
     /* clean buffer for reuse */
     memset( buf, 0, conf->buffer_size );
 
-    /* Use below for features not yet implemented! */
-    //*n = snprintf( buf, 32, "KL/%.1f 407 not yet implemented\n",
-    //               KL_VERSION );
+    /* ready to analyze request args passed in */
+    int arg_count = 0;
+    char req_args[ARG_LEN][ARG_BUF_LEN];
+    char *tok;
+    tok = strtok( tmp, " " );
+
+    /* Empty buffer to prevent problems */
+    for ( int i = 0; i < ARG_LEN; i++ )
+    {
+        memset( req_args[i], 0, ARG_BUF_LEN );
+    }
+
+    /* now process args */
+    while ( tok != 0 && arg_count < ARG_LEN )
+    {
+        strncpy( req_args[arg_count], tok, strlen(tok) + 1 );
+
+        tok = strtok( 0, " " );
+
+        arg_count++;
+    }
 
     // TRANSMIT custom_topic custom_message KL/version#
-    if ( strncasecmp(str_buffer[0], "TRANSMIT", 9) == 0 )
+    if ( strncasecmp(req_args[0], TRANSMIT, TRANSMIT_LEN) == 0 )
     {
-        if( get_protocol_version(str_buffer[3]) < 0.1 )
+#ifdef DEBUG
+        for ( int i = 0; i < arg_count; i++ )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
-                           KL_VERSION );
+            printf( "%s\n", req_args[i] );
+        }
+#endif
 
-            clean_str_buffers();
+        /* Verify arg len */
+        if ( arg_count < TRANSMIT_ARG )
+        {
+            *n = snprintf( buf, MESSAGE_409_LEN, MESSAGE_409, KL_VERSION );
 
             return rv;
         }
 
-        mqtt_publish( cl, str_buffer[1], str_buffer[2],
-                      strlen(str_buffer[2]), MQTT_PUBLISH_QOS_0 );
+        /* verify that protocol version is found */
+        if( get_protocol_version(req_args[arg_count - 1]) < 0.1 )
+        {
+            *n = snprintf( buf, MESSAGE_406_LEN, MESSAGE_406, KL_VERSION );
 
+            return rv;
+        }
+
+        /* execute request */
+        mqtt_publish( cl, req_args[1], req_args[2], strlen(req_args[2]),
+                      MQTT_PUBLISH_QOS_0 );
+
+        /* verify results */
         if ( cl->error != MQTT_OK )
         {
 #ifdef DEBUG
             log_warn( "mqtt error: %s", mqtt_error_str(cl->error) );
 #endif
 
-            *n = snprintf( buf, (29 + strlen(mqtt_error_str(cl->error))),
-                           "KL/%.1f 500 internal error: %s\n", KL_VERSION,
-                           mqtt_error_str(cl->error) );
+            int len = strlen(mqtt_error_str(cl->error)) + MESSAGE_500_LEN;
+            *n = snprintf( buf, len, MESSAGE_500, KL_VERSION,
+                      mqtt_error_str(cl->error) );
         }
         else
         {
-            *n = snprintf( buf, (34 + strlen(str_buffer[1]) +
-                           strlen(str_buffer[2])),
-                           "KL/%.1f 200 custom command %s %s sent\n",
-                           KL_VERSION, str_buffer[1], str_buffer[2] );
+            int len = strlen(req_args[1]) + strlen(req_args[2]) +
+                      MESSAGE_205_LEN;
+            *n = snprintf( buf, len, MESSAGE_205, KL_VERSION,
+                      req_args[1], req_args[2] );
         }
     }
     // TOGGLE dev_name KL/version#
-    else if ( strncasecmp(str_buffer[0], "TOGGLE", 7) == 0 )
+    else if ( strncasecmp(req_args[0], TOGGLE, TOGGLE_LEN) == 0 )
     {
-        if( get_protocol_version(str_buffer[2]) < 0.1 )
+#ifdef DEBUG
+        for ( int i = 0; i < arg_count; i++ )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
-                           KL_VERSION );
+            printf( "%s\n", req_args[i] );
+        }
+#endif
 
-            clean_str_buffers();
+        /* Verify arg len */
+        if ( arg_count < TOGGLE_ARG )
+        {
+            *n = snprintf( buf, MESSAGE_409_LEN, MESSAGE_409, KL_VERSION );
 
             return rv;
         }
 
-        int status = change_dev_state( str_buffer[1], "toggle" );
+        /* verify that protocol version is found */
+        if( get_protocol_version(req_args[arg_count - 1]) < 0.1 )
+        {
+            *n = snprintf( buf, MESSAGE_406_LEN, MESSAGE_406, KL_VERSION );
 
+            return rv;
+        }
+
+        /* execute request */
+        int status = toggle_dev_power( req_args[1], TOGGLE );
+
+        /* verify results */
         if ( status )
         {
-            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
-                           "KL/%.1f 404 no such device %s\n",
-                           KL_VERSION, str_buffer[1] );
+            int len = strlen(req_args[1]) + MESSAGE_404_LEN;
+            *n = snprintf( buf, len, MESSAGE_404, KL_VERSION, req_args[1] );
         }
         else
         {
-            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
-                           "KL/%.1f 200 device %s toggled\n",
-                           KL_VERSION, str_buffer[1] );
+            int len = strlen(req_args[1]) + MESSAGE_200_LEN;
+            *n = snprintf( buf, len, MESSAGE_200, KL_VERSION, req_args[1] );
         }
     }
-    // SET dev_name [ON,1,TRUE|OFF,0,FALSE] KL/version#
-    else if ( strncasecmp(str_buffer[0], "SET", 4) == 0 )
+    // SET dev_name command message KL/version#
+    else if ( strncasecmp(req_args[0], SET_REQ, SET_REQ_LEN) == 0 )
     {
-        if( get_protocol_version(str_buffer[3]) < 0.1 )
+#ifdef DEBUG
+        for ( int i = 0; i < arg_count; i++ )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
-                           KL_VERSION );
+            printf( "%s\n", req_args[i] );
+        }
+#endif
 
-            clean_str_buffers();
+        /* Verify arg len */
+        if ( arg_count < SET_ARG )
+        {
+            *n = snprintf( buf, MESSAGE_409_LEN, MESSAGE_409, KL_VERSION );
 
             return rv;
         }
 
-        int status = change_dev_state( str_buffer[1], str_buffer[2] );
-
-        if ( status == 1 )
+        /* verify that protocol version is found */
+        if( get_protocol_version(req_args[arg_count - 1]) < 0.1 )
         {
-            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
-                           "KL/%.1f 404 no such device %s\n",
-                           KL_VERSION, str_buffer[1] );
-        }
-        else if ( status == 2 )
-        {
-            *n = snprintf( buf, (29 + strlen(str_buffer[2])),
-                           "KL/%.1f 405 incorrect input %s\n",
-                           KL_VERSION, str_buffer[2] );
-        }
-        else
-        {
-            *n = snprintf( buf, (25 + strlen(str_buffer[1]) +
-                           strlen(str_buffer[2])),
-                           "KL/%.1f 200 device %s set %s\n",
-                           KL_VERSION, str_buffer[1], str_buffer[2] );
-        }
-    }
-    // ADD dev_name mqtt_topic dev_type KL/version#
-    else if ( strncasecmp(str_buffer[0], "ADD", 4) == 0 )
-    {
-        if( get_protocol_version(str_buffer[4]) < 0.1 )
-        {
-            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
-                           KL_VERSION );
-
-            clean_str_buffers();
+            *n = snprintf( buf, MESSAGE_406_LEN, MESSAGE_406, KL_VERSION );
 
             return rv;
         }
 
-        int status = add_device( str_buffer[1], str_buffer[2],
-                                 atoi(str_buffer[3]) );
+        /* execute request */
+        int status = change_dev_state( req_args[1], req_args[2], req_args[3] );
 
-        if ( status == 1 )
+        /* verify results */
+        if ( status == 2)
         {
-            *n = snprintf( buf, (34 + strlen(str_buffer[1])),
-                           "KL/%.1f 403 unable to add device %s\n",
-                           KL_VERSION, str_buffer[1] );
+            int len = strlen(req_args[2]) + MESSAGE_405_LEN;
+            *n = snprintf( buf, len, MESSAGE_405, KL_VERSION, req_args[2] );
         }
-        else if ( status == 2 )
+        else if ( status == 1 )
         {
-            *n = snprintf( buf, (35 + strlen(str_buffer[1])),
-                           "KL/%.1f 408 device %s already exists\n",
-                           KL_VERSION, str_buffer[1] );
+            int len = strlen(req_args[1]) + MESSAGE_404_LEN;
+            *n = snprintf( buf, len, MESSAGE_404, KL_VERSION, req_args[1] );
         }
         else
         {
-            *n = snprintf( buf, (26 + strlen(str_buffer[1])),
-                          "KL/%.1f 200 device %s added\n",
-                          KL_VERSION, str_buffer[1] );
+            int len = strlen(req_args[1]) + strlen(req_args[2]) +
+                      strlen(req_args[3]) + MESSAGE_201_LEN;
+            *n = snprintf( buf, len, MESSAGE_201, KL_VERSION, req_args[1],
+                           req_args[2], req_args[3] );
+        }
+    }
+    // ADD dev_name mqtt_topic dev_type <valid_cmnds> KL/version#
+    else if ( strncasecmp(req_args[0], ADD_REQ, ADD_REQ_LEN) == 0 )
+    {
+#ifdef DEBUG
+        for ( int i = 0; i < arg_count; i++ )
+        {
+            printf( "%s\n", req_args[i] );
+        }
+#endif
+        int id = atoi( req_args[3] );
+
+        /* Verify arg len */
+        switch( id )
+        {
+            case 1:
+            case 7:
+            {
+                if ( arg_count < ADD_ARGB )
+                {
+                    *n = snprintf( buf, MESSAGE_409_LEN,
+                                  MESSAGE_409, KL_VERSION );
+
+                    return rv;
+                }
+
+                break;
+            }
+
+            default:
+            {
+                if ( arg_count < ADD_ARGA )
+                {
+                    *n = snprintf( buf, MESSAGE_409_LEN,
+                                  MESSAGE_409, KL_VERSION );
+
+                    return rv;
+                }
+
+                break;
+            }
+        }
+
+        /* verify that protocol version is found */
+        if( get_protocol_version(req_args[arg_count - 1]) < 0.1 )
+        {
+            *n = snprintf( buf, MESSAGE_406_LEN, MESSAGE_406, KL_VERSION );
+
+            return rv;
+        }
+
+        /* execute request */
+        int status;
+        switch( id )
+        {
+            case 1:
+            case 7:
+            {
+                status = add_device( req_args[1], req_args[2],
+                                     id, req_args[4] );
+                break;
+            }
+
+            default:
+            {
+                status = add_device( req_args[1], req_args[2], id, NULL );
+                break;
+            }
+        }
+
+        /* verify results */
+        if ( status )
+        {
+            int len = strlen(req_args[1]) + MESSAGE_403_LEN;
+            *n = snprintf( buf, len, MESSAGE_403, KL_VERSION, req_args[1] );
+        }
+        else if ( status > 1 )
+        {
+            int len = strlen(req_args[1]) + MESSAGE_408_LEN;
+            *n = snprintf( buf, len, MESSAGE_408, KL_VERSION, req_args[1] );
+        }
+        else
+        {
+            int len = strlen(req_args[1]) + MESSAGE_202_LEN;
+            *n = snprintf( buf, len, MESSAGE_202, KL_VERSION, req_args[1] );
         }
     }
     // DELETE dev_name KL/version#
-    else if ( strncasecmp(str_buffer[0], "DELETE", 7) == 0 )
+    else if ( strncasecmp(req_args[0], DEL_REQ, DEL_REQ_LEN) == 0 )
     {
-        if( get_protocol_version(str_buffer[2]) < 0.1 )
+#ifdef DEBUG
+        for ( int i = 0; i < arg_count; i++ )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
-                           KL_VERSION );
+            printf( "%s\n", req_args[i] );
+        }
+#endif
 
-            clean_str_buffers();
+        /* Verify arg len */
+        if ( arg_count < DELETE_ARG )
+        {
+            *n = snprintf( buf, MESSAGE_409_LEN, MESSAGE_409, KL_VERSION );
 
             return rv;
         }
 
-        int status = delete_device( str_buffer[1] );
+        /* verify that protocol version is found */
+        if( get_protocol_version(req_args[arg_count - 1]) < 0.1 )
+        {
+            *n = snprintf( buf, MESSAGE_406_LEN, MESSAGE_406, KL_VERSION );
 
+            return rv;
+        }
+
+        /* execute request */
+        int status = delete_device( req_args[1] );
+
+        /* verify results */
         if ( status )
         {
-            *n = snprintf( buf, (30 + strlen(str_buffer[1])),
-                           "KL/%.1f 402 unable to delete %s\n",
-                           KL_VERSION, str_buffer[1] );
+            int len = strlen(req_args[1]) + MESSAGE_402_LEN;
+            *n = snprintf( buf, len, MESSAGE_402, KL_VERSION, req_args[1] );
         }
         else
         {
-            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
-                          "KL/%.1f 200 device %s deleted\n",
-                          KL_VERSION, str_buffer[1] );
+            int len = strlen(req_args[1]) + MESSAGE_203_LEN;
+            *n = snprintf( buf, len, MESSAGE_203, KL_VERSION, req_args[1] );
         }
     }
-    // LIST KL/version#
-    else if ( strncasecmp(str_buffer[0], "LIST", 5) == 0 )
+    // UPDATE NAME old_dev_name new_dev_name KL/version#
+    // UPDATE TOPIC dev_name new_mqtt_topic KL/version#
+    else if ( strncasecmp(req_args[0], UPDATE_REQ, UPDATE_REQ_LEN) == 0 )
     {
-        if( get_protocol_version(str_buffer[1]) < 0.1 )
+#ifdef DEBUG
+        for ( int i = 0; i < arg_count; i++ )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
-                           KL_VERSION );
+            printf( "%s\n", req_args[i] );
+        }
+#endif
 
-            clean_str_buffers();
+        /* Verify arg len */
+        if ( arg_count < UPDATE_ARG )
+        {
+            *n = snprintf( buf, MESSAGE_409_LEN, MESSAGE_409, KL_VERSION );
 
             return rv;
         }
 
-        *n = snprintf( buf, (32 + get_digit_count(get_current_entry_count())),
-                       "KL/%.1f 200 number of devices: %d\n",
-                       KL_VERSION, get_current_entry_count() );
+        /* verify that protocol version is found */
+        if( get_protocol_version(req_args[arg_count - 1]) < 0.1 )
+        {
+            *n = snprintf( buf, MESSAGE_406_LEN, MESSAGE_406, KL_VERSION );
+
+            return rv;
+        }
+
+        /* execute request */
+
+        /* verify results */
+
+    }
+    // LIST KL/version#
+    else if ( strncasecmp(req_args[0], LIST, LIST_LEN) == 0 )
+    {
+#ifdef DEBUG
+        for ( int i = 0; i < arg_count; i++ )
+        {
+            printf( "%s\n", req_args[i] );
+        }
+#endif
+
+        /* Verify arg len */
+        if ( arg_count < LIST_ARG )
+        {
+            *n = snprintf( buf, MESSAGE_409_LEN, MESSAGE_409, KL_VERSION );
+
+            return rv;
+        }
+
+        /* verify that protocol version is found */
+        if( get_protocol_version(req_args[arg_count - 1]) < 0.1 )
+        {
+            *n = snprintf( buf, MESSAGE_406_LEN, MESSAGE_406, KL_VERSION );
+
+            return rv;
+        }
+
+        int len = MESSAGE_204_LEN + get_digit_count(get_current_entry_count());
+        *n = snprintf( buf, len, MESSAGE_204, KL_VERSION,
+                       get_current_entry_count() );
 
         /* show the current devices to the client */
         rv = 1;
     }
     // STATUS dev_name KL/version#
-    else if ( strncasecmp(str_buffer[0], "STATUS", 7) == 0 )
+    else if ( strncasecmp(req_args[0], STATUS, STATUS_LEN) == 0 )
     {
-        if( get_protocol_version(str_buffer[2]) < 0.1 )
+#ifdef DEBUG
+        for ( int i = 0; i < arg_count; i++ )
         {
-            *n = snprintf( buf, 37, "KL/%.1f 406 cannot detect KL version\n",
-                           KL_VERSION );
+            printf( "%s\n", req_args[i] );
+        }
+#endif
 
-            clean_str_buffers();
+        /* Verify arg len */
+        if ( arg_count < STATUS_ARG )
+        {
+            *n = snprintf( buf, MESSAGE_409_LEN, MESSAGE_409, KL_VERSION );
 
             return rv;
         }
 
-
-        int state = get_dev_state( str_buffer[1] );
-
-        /* check for status */
-        if ( state < -1 )
+        /* verify that protocol version is found */
+        if( get_protocol_version(req_args[arg_count - 1]) < 0.1 )
         {
-            *n = snprintf( buf, (28 + strlen(str_buffer[1])),
-                           "KL/%.1f 404 no such device %s\n",
-                           KL_VERSION, str_buffer[1] );
-        }
-        else if ( state == -1 )
-        {
-            /* try again, but using mqtt */
-            state = get_dev_state_mqtt( str_buffer[1] );
+            *n = snprintf( buf, MESSAGE_406_LEN, MESSAGE_406, KL_VERSION );
 
-            /* check for status */
-            if ( state < 0 )
-            {
-                *n = snprintf( buf, (34 + strlen(str_buffer[1])),
-                               "KL/%.1f 401 device %s state unknown\n",
-                               KL_VERSION, str_buffer[1] );
-            }
-            else
-            {
-                int result_len = (state) ? 3 : 4;
-                *n = snprintf( buf, (24 + strlen(str_buffer[1]) + result_len),
-                               "KL/%.1f 200 device %s is %s\n", KL_VERSION,
-                               str_buffer[1], (state) ? "ON" : "OFF" );
-            }
+            return rv;
         }
-        else
-        {
-            int result_len = (state) ? 3 : 4;
-            *n = snprintf( buf, (24 + strlen(str_buffer[1]) + result_len),
-                           "KL/%.1f 200 device %s is %s\n", KL_VERSION,
-                           str_buffer[1], (state) ? "ON" : "OFF" );
-        }
+
+        /* TO BE REMOVED! */
+        *n = snprintf( buf, MESSAGE_407_LEN, MESSAGE_407, KL_VERSION );
     }
     // allow the client to disconnect
-    else if ( strncasecmp(str_buffer[0], "Q", 2) == 0
-           || strncasecmp(str_buffer[0], "QUIT", 5) == 0 )
+    else if ( strncasecmp(req_args[0], QA, QA_LEN) == 0
+           || strncasecmp(req_args[0], QB, QB_LEN) == 0 )
     {
-        *n = snprintf( buf, 20, "KL/%.1f 200 goodbye\n", KL_VERSION );
+        *n = snprintf( buf, MESSAGE_207_LEN, MESSAGE_207, KL_VERSION );
 
-        /* tell the connection handler to let the client exit */
         rv = -1;
     }
     // Something else was passed in
     else
     {
-        *n = snprintf( buf, 24, "KL/%.1f 400 bad request\n", KL_VERSION );
-    }
+#ifdef DEBUG
+        printf( "passed in: %s\n", req_args[0] );
+#endif
 
-    /* Clean str buffers */
-    clean_str_buffers();
+        *n = snprintf( buf, MESSAGE_400_LEN, MESSAGE_400, KL_VERSION );
+    }
 
     return rv;
 }
@@ -534,161 +721,6 @@ static int parse_server_request(char *buf, int *n)
  ******************************************************************************/
 
 /**
- * @brief get current device's state.
- *
- * @param dv_name the device name of interest.
- *
- * @note Returns -2 for no such device error, otherwise returns
- * the state.
- *
- * @todo this may have to be specified for toggleable devices,
- * with another one entirely for RGB bulbs.
- */
-static int get_dev_state( const char *dv_name )
-{
-    int rv = -2; /* return value */
-
-    sem_wait( mutex );
-    pthread_mutex_lock( lock );
-
-    printf( "NOT YET IMPLEMENTED!\n" );
-    /*
-    for ( int i = 0; i < conf->max_dev_count; i++ )
-    {
-        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
-        {
-            rv = memory[i].dev_state;
-            break;
-        }
-    }*/
-
-    pthread_mutex_unlock( lock );
-    sem_post( mutex );
-
-    return rv;
-}
-
-/**
- * @brief get current device's state, but asking the device itself.
- *
- * @param dv_name the device name of interest.
- *
- * @note Returns -1 for unknown state, otherwise returns
- * the state.
- *
- * @todo this may have to be specified for toggleable devices,
- * with another one entirely for RGB bulbs.
- */
-static int get_dev_state_mqtt( const char *dv_name )
-{
-    int rv = -1; /* return value */
-    int loc = -1;
-
-    sem_wait( mutex );
-    pthread_mutex_lock( lock );
-
-    printf( "NOT YET IMPLEMENTED!\n" );
-    /*
-    for ( int i = 0; i < conf->max_dev_count; i++ )
-    {
-        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
-        {
-            mqtt_publish( cl, memory[i].cmnd_topic, "", 0,
-                          MQTT_PUBLISH_QOS_0 );
-            loc = i;
-            break;
-        }
-    }*/
-
-    pthread_mutex_unlock( lock );
-    sem_post( mutex );
-
-    /* sleep for 150ms */
-    usleep( 150000U );
-
-    /* See if a response has been made */
-    sem_wait( mutex );
-    pthread_mutex_lock( lock );
-
-    /*
-    rv = memory[loc].dev_state;
-    */
-
-    pthread_mutex_unlock( lock );
-    sem_post( mutex );
-
-    return rv;
-}
-
-/**
- * @brief Change device's state.
- *
- * @param dv_name the device name to change
- * @param msg the message to change dev state
- *
- * @note Returns 1 for no such device, Returns 2 for invalid mqtt
- * command, otherwise returns 0.
- */
-static int change_dev_state( const char *dv_name, const char *msg )
-{
-    int rv = 0; /* return value */
-    int loc = -1; /* location of a device match */
-
-    /*
-     * This may have to be expanded for rgb bulbs, but
-     * we shall see.
-     */
-    /* make sure msg is something acceptable */
-    if ( strncasecmp(msg, "ON", 3) == 0
-      || strncasecmp(msg, "1", 2) == 0
-      || strncasecmp(msg, "TRUE", 5) == 0
-      || strncasecmp(msg, "OFF", 4) == 0
-      || strncasecmp(msg, "0", 2) == 0
-      || strncasecmp(msg, "FALSE", 6) == 0
-      || strncasecmp(msg, "TOGGLE", 7) == 0 )
-    {
-        rv = 0;
-    }
-    else
-    {
-        return 2;
-    }
-
-    /* Only when this point is memory going to be accessed */
-    sem_wait( mutex );
-    pthread_mutex_lock( lock );
-
-    printf( "NOT YET IMPLEMENTED!\n" );
-    /* scan for a dev_name match *
-    for ( int i = 0; i < conf->max_dev_count; i++ )
-    {
-        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
-        {
-            loc = i;
-            break;
-        }
-
-        /* No matches at all? all done *
-        if ( i == (conf->max_dev_count - 1) )
-        {
-            rv = 1;
-        }
-    }
-
-    /* if a device is found, send the command! *
-    if ( !rv )
-    {
-        mqtt_publish( cl, memory[loc].cmnd_topic, msg, strlen(msg),
-                      MQTT_PUBLISH_QOS_0 );
-    }*/
-
-    pthread_mutex_unlock( lock );
-    sem_post( mutex );
-
-    return rv;
-}
-
-/**
  * @brief Function that adds a device to memory,
  * then eventually the database.
  *
@@ -696,35 +728,41 @@ static int change_dev_state( const char *dv_name, const char *msg )
  * @param mqtt_tpc the mqtt_topic associated with the new device
  * @param dv_type the type of device the new device is
  *
- * @note Returns 2 for device already exists,
+ * @note
+ * Returns 2 for device already exists,
  * returns 1 for failure to add device
  * (usually because too many devices), returns 0 otherwise.
  */
-static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type )
+static int add_device( const char *dv_name, const char *mqtt_tpc,
+                       const int dv_type, const char *vld_cmds )
 {
     int rv = 1; /* return value, assume too many devices */
     int dup = 0; /* assume no dupes initially */
     int loc = -1; /* assume no free space initially */
 
+    /* make sure dev_id is correct, return if not */
+    if ( dv_type > DEV_TYPE_MAX || dv_type < 0 )
+    {
+        return rv;
+    }
+
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
-    printf( "NOT YET IMPLEMENTED!\n" );
-
-    /* Scan for an empty spot, check for duplicates *
+    /* Scan for an empty spot, check for duplicates */
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
-        /* Check for a duplicate *
+        /* Check for a duplicate */
         if ( strncasecmp( memory[i].dev_name, dv_name,
              strlen(dv_name)) == 0 )
         {
-            /* duplicate found *
+            /* duplicate found */
             dup = 1;
             rv = 2;
             break;
         }
 
-        /* take the first found free spot *
+        /* take the first found free spot */
         if ( memory[i].dev_name[0] == '\0' && loc == -1 )
         {
             rv = 0;
@@ -732,36 +770,94 @@ static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type )
         }
     }
 
-    /* only add if there does not exist a duplicate *
+    /* only add if there does not exist a duplicate */
     if ( !dup && rv == 0 )
     {
-        /* Copy necessary information *
-        strncpy( memory[loc].dev_name, dv_name, strlen(dv_name) );
-        strncpy( memory[loc].mqtt_topic, mqtt_tpc, strlen(mqtt_tpc) );
+        /* Copy necessary information */
+        strncpy( memory[loc].dev_name, dv_name, strlen(dv_name) + 1 );
+        strncpy( memory[loc].mqtt_topic, mqtt_tpc, strlen(mqtt_tpc) + 1 );
         memory[loc].dev_type = dv_type;
+        strncpy( memory[loc].dev_state, DEV_STATE_TMPL, DV_STATE_TMPL_LEN );
 
-        /* Also copy full topic as well *
-        snprintf( memory[loc].stat_topic, (12 + strlen(mqtt_tpc)),
-                  "stat/%s/POWER", mqtt_tpc );
-        snprintf( memory[loc].cmnd_topic, (12 + strlen(mqtt_tpc)),
-                  "cmnd/%s/POWER", mqtt_tpc );
+        /*
+         * Fill in valid commands, depending on dev_type
+         */
+        switch( memory[loc].dev_type )
+        {
+            case 0:
+            {
+                strncpy( memory[loc].valid_cmnds, DEV_TYPE0_CMDS,
+                         DEV_TYPE0_CMDS_LEN );
+                break;
+            }
 
-        /* subscribe to this new device *
-        mqtt_subscribe( cl, memory[loc].stat_topic, 0 );
+            case 1:
+            {
+                int count = atoi( vld_cmds );
+                powerstrip_cmnd_cat( memory[loc].valid_cmnds, count );
+                break;
+            }
 
-        /* request the current state if at all possible *
-        mqtt_publish( cl, memory[loc].cmnd_topic, "", 0,
-                          MQTT_PUBLISH_QOS_0 );
+            case 2:
+            {
+                strncpy( memory[loc].valid_cmnds, DEV_TYPE2_CMDS,
+                         DEV_TYPE2_CMDS_LEN );
+                break;
+            }
 
-        /* add this device to database! *
-        to_change[loc] = 5;
+            case 3:
+            {
+                strncpy( memory[loc].valid_cmnds, DEV_TYPE3_CMDS,
+                         DEV_TYPE3_CMDS_LEN );
+                break;
+            }
 
-        /* increment database count *
+            case 4:
+            {
+                strncpy( memory[loc].valid_cmnds, DEV_TYPE4_CMDS,
+                         DEV_TYPE4_CMDS_LEN );
+                break;
+            }
+
+            case 5:
+            {
+                strncpy( memory[loc].valid_cmnds, DEV_TYPE5_CMDS,
+                         DEV_TYPE5_CMDS_LEN );
+                break;
+            }
+
+            case 6:
+            {
+                strncpy( memory[loc].valid_cmnds, DEV_TYPE6_CMDS,
+                         DEV_TYPE6_CMDS_LEN );
+                break;
+            }
+
+            case 7:
+            {
+                strncpy( memory[loc].valid_cmnds, vld_cmds,
+                         strlen(vld_cmds) + 1 );
+                break;
+            }
+        }
+
+        /* subscribe to this new device */
+        prepare_topic( STAT, memory[loc].mqtt_topic, (char *)RESULT );
+        mqtt_subscribe( cl, topic, 0 );
+
+        /* request the current state if at all possible */
+        prepare_topic( CMND, memory[loc].mqtt_topic, (char *)STATE );
+        mqtt_publish( cl, topic, "", 0, MQTT_PUBLISH_QOS_0 );
+
+        /* add this device to database! */
+        to_change[loc] = 4;
+
+        /* increment database count */
         increment_db_count();
 
-        /* set return value to success *
+        /* set return value to success */
         rv = 0;
-    }*/
+    }
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
@@ -775,8 +871,8 @@ static int add_device( char *dv_name, char *mqtt_tpc, const int dv_type )
  *
  * @param dv_name the device name of the device to remove
  *
- * @note Returns 1 for failure to add device
- * (usually because too many devices), returns 0 otherwise.
+ * @note Returns 1 for failure to delete device
+ * (usually because it does not exist), returns 0 otherwise.
  */
 static int delete_device( char *dv_name )
 {
@@ -785,35 +881,36 @@ static int delete_device( char *dv_name )
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
-    /* scan for a dev_name match *
+    /* scan for a dev_name match */
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
         if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
         {
-            /* Copy current information to old, and memset *
+            /* Copy current information to old, and memset */
             strncpy( memory[i].odev_name, memory[i].dev_name,
-                     strlen(memory[i].dev_name) );
+                     strlen(memory[i].dev_name) + 1 );
             strncpy( memory[i].omqtt_topic, memory[i].mqtt_topic,
-                     strlen(memory[i].mqtt_topic) );
+                     strlen(memory[i].mqtt_topic) + 1 );
             memset( memory[i].dev_name, 0, DB_DATA_LEN );
             memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
 
-            /* unsubscribe from this device *
-            mqtt_unsubscribe( cl, memory[i].stat_topic );
+            /* unsubscribe from this device */
+            prepare_topic( STAT, memory[i].omqtt_topic, (char *)RESULT );
+            mqtt_unsubscribe( cl, topic );
 
-            /* delete this device from database! *
-            to_change[i] = 6;
+            /* delete this device from database! */
+            to_change[i] = 5;
 
-            /* decrement database count *
+            /* decrement database count */
             decrement_db_count();
 
-            /* set return value to success *
+            /* set return value to success */
             rv = 0;
 
-            /* all done *
+            /* all done */
             break;
         }
-    }*/
+    }
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
@@ -821,16 +918,135 @@ static int delete_device( char *dv_name )
     return rv;
 }
 
+/**
+ * @brief Change device's state.
+ *
+ * @param dv_name the device name to change.
+ * @param cmd the device's command to be sent.
+ * @param msg the message to change dev state.
+ *
+ * @note Returns 1 for no such device, Returns 2 for invalid mqtt
+ * command, otherwise returns 0.
+ */
+static int change_dev_state( const char *dv_name, const char *cmd, char *msg )
+{
+    int rv = 0; /* return value */
+    int loc = -1; /* location of a device match */
+
+    /* Only at this point is memory going to be accessed. */
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    /* scan for a dev_name match */
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
+        {
+            loc = i;
+            break;
+        }
+
+        /* No matches at all? all done */
+        if ( i == (conf->max_dev_count - 1) )
+        {
+            rv = 1;
+        }
+    }
+
+    /* only continue if a device is found */
+    if ( !rv )
+    {
+        /* verify cmd is acceptable for the device */
+        if ( verify_command( cmd, memory[loc].valid_cmnds ) )
+        {
+            rv = 2;
+        }
+
+        /* if the command is valid, ship it! */
+        if ( rv == 0 )
+        {
+            prepare_topic( CMND, memory[loc].mqtt_topic, (char *)cmd );
+            mqtt_publish( cl, topic, msg, strlen(msg),
+                          MQTT_PUBLISH_QOS_0 );
+        }
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+
+    return rv;
+}
+
+/**
+ * @brief Change device's power state.
+ *
+ * @param dv_name the device name to change.
+ * @param cmd the device's command to be sent.
+ * @param msg the message to change dev state.
+ *
+ * @note Returns 1 for no such device, otherwise returns 0.
+ */
+static int toggle_dev_power( const char *dv_name, const char *msg )
+{
+    int rv = 0; /* return value */
+    int loc = -1; /* location of a device match */
+
+    /* Only at this point is memory going to be accessed. */
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    /* scan for a dev_name match */
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
+        {
+            loc = i;
+            break;
+        }
+
+        /* No matches at all? all done */
+        if ( i == (conf->max_dev_count - 1) )
+        {
+            rv = 1;
+        }
+    }
+
+    /* only continue if a device is found */
+    if ( !rv )
+    {
+        char cmd[DB_CMND_LEN];
+        memset( cmd, 0, DB_CMND_LEN );
+
+        /* if a powerstrip set to POWER0 */
+        if ( memory[loc].dev_type == 1 )
+        {
+            snprintf( cmd, DEV_TYPE1B_CMD_LEN, DEV_TYPE1B_CMD, 0 );
+            prepare_topic( CMND, memory[loc].mqtt_topic, cmd );
+        }
+        else
+        {
+            strncpy(cmd, DEV_TYPE0_CMDS, DEV_TYPE0_CMDS_LEN );
+            prepare_topic( CMND, memory[loc].mqtt_topic, cmd );
+        }
+
+        mqtt_publish( cl, topic, msg, strlen(msg),
+                      MQTT_PUBLISH_QOS_0 );
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+
+    return rv;
+}
 
 /**
  * @brief Function that prints devices in memory when requested to list
  * devices by client.
  *
  * @param fd the socket fd of the client.
- * @param n the clien's buffer number
+ * @param n the client's buffer number
  *
  * @note This uses semaphores since it access memory to satisfy the request.
- *
  */
 static void dump_devices( int fd, const int n )
 {
@@ -846,9 +1062,10 @@ static void dump_devices( int fd, const int n )
         }
 
         char *dv_type = device_type_to_str( memory[i].dev_type );
-        int response_len = (10 + strlen(memory[i].dev_name) +
+        int response_len = (DUMP_204_LEN + strlen(memory[i].dev_name) +
                   strlen(memory[i].mqtt_topic) + strlen(dv_type));
-        snprintf( server_buffer[n], response_len, "%s -- %s -- %s\n",
+
+        snprintf( server_buffer[n], response_len, DUMP_204,
                   memory[i].dev_name, memory[i].mqtt_topic, dv_type );
 
         int status = write( fd, server_buffer[n], response_len );
@@ -967,13 +1184,15 @@ static void server_connection_handler( struct pollfd *connfds, const int num )
             n = write( connfds[count].fd, server_buffer[count - 1],
                        response_len );
 
+            /* Reset respective buffer */
+            memset( server_buffer[count - 1], 0, conf->buffer_size );
+
             /* Handle exit if client wants to exit */
             if ( status < 0 )
             {
                 close( connfds[count].fd );
                 connfds[count].fd = -1;
             }
-            /* the LIST request was sent */
             else if ( status )
             {
                 dump_devices( connfds[count].fd, (count - 1) );
@@ -1092,7 +1311,7 @@ int server_loop( const int listenfd )
                 log_warn( "Too many clients reached!" );
 #endif
 
-                write( connfd, FULL_MESSAGE, FULL_MESSAGE_LEN );
+                write( connfd, MESSAGE_505, MESSAGE_505_LEN );
                 close( connfd );
             }
 
@@ -1262,144 +1481,46 @@ void publish_kl_callback( void** client,
     pthread_mutex_lock( lock );
 
     int topic_found = -1;
-    int memory_location = -1;
+    int loc = -1;
 
-    strncpy( topic, published->topic_name, published->topic_name_size );
     strncpy( app_msg, published->application_message,
              published->application_message_size );
 
     // for debugging purposes
 #ifdef DEBUG
-    printf( "%s : %s\n", topic, app_msg );
+    printf( "%s\n", published->topic_name );
+    printf( "app_msg: %s\n", app_msg );
 #endif
 
-    printf( "NOT YET IMPLEMENTED!" );
-
-    /* Find a match! *
+    /* Find a match! */
     for ( int i = 0; i < conf->max_dev_count; i++ )
     {
-        if ( strncasecmp(topic, memory[i].stat_topic,
+        prepare_topic( STAT, memory[i].mqtt_topic, (char *)RESULT );
+        if ( strncasecmp(topic, published->topic_name,
                          strlen(topic)) == 0 )
         {
+#ifdef DEBUG
+            printf( "found match\n" );
+#endif
             topic_found = 1;
-            memory_location = i;
+            loc = i;
             break;
         }
 
-        /* no matching topics? for now just quietly ignore. *
+        /* no matching topics? for now just quietly ignore. */
         if ( i == (conf->max_dev_count - 1) )
         {
             topic_found = 0;
         }
     }
 
-    /* if a match is found, change the state *
-    if ( topic_found )
-    {
-        /* assume the dev_state will change *
-        int change_permitted = 1;
+    /**
+     * TODO:
+     *
+     * Analyze incoming information, and update it all
+     */
 
-        /*
-         * Now to compare app message
-         *
-        if ( strncasecmp(app_msg, "ON", 3) == 0 )
-        {
-            memory[memory_location].dev_state = 1;
-        }
-        else if ( strncasecmp(app_msg, "OFF", 4) == 0 )
-        {
-            memory[memory_location].dev_state = 0;
-        }
-        else
-        {
-            /* If here is reached, don't bother for now *
-            /*
-             * THIS MAY NEED TO BE REVISED
-             * TO SUPPORT RGB LIGHTS... IF
-             * I (Christian) DECIDE TO SUPPORT THOSE.
-             *
-#ifdef DEBUG
-            log_warn( "Detected something different from topic %s : %s",
-                      topic, app_msg );
-#endif
-
-            change_permitted = 0;
-        }
-
-        if ( change_permitted )
-        {
-            /* make sure a change isn't already staged *
-            switch( to_change[memory_location] )
-            {
-                // Only state needs to be updated, continue
-                case -1:
-                case 0:
-                    to_change[memory_location] = 0;
-                    break;
-
-                // dev_name is to be updated, stage as a full update
-                case 1:
-                {
-                    strncpy( memory[memory_location].omqtt_topic,
-                             memory[memory_location].mqtt_topic,
-                             strlen(memory[memory_location].mqtt_topic) );
-
-                    to_change[memory_location] = 4;
-                    break;
-                }
-
-                // mqtt_topic is to be updated, stage a full update
-                case 2:
-                {
-                    strncpy( memory[memory_location].odev_name,
-                             memory[memory_location].dev_name,
-                             strlen(memory[memory_location].dev_name) );
-
-                    to_change[memory_location] = 4;
-                    break;
-                }
-
-                // dev_type is to be updated, stage a full update
-                case 3:
-                {
-                    strncpy( memory[memory_location].odev_name,
-                             memory[memory_location].dev_name,
-                             strlen(memory[memory_location].dev_name) );
-                    strncpy( memory[memory_location].omqtt_topic,
-                             memory[memory_location].mqtt_topic,
-                             strlen(memory[memory_location].mqtt_topic) );
-
-                    to_change[memory_location] = 4;
-                    break;
-                }
-
-                // No need to update these
-                case 4:
-                case 5:
-                case 6:
-                {
-                    /* ignore, leave value alone *
-#ifdef DEBUG
-                    log_warn( "Found case %d", to_change[memory_location] );
-#endif
-
-                    break;
-                }
-
-                default:
-                {
-#ifdef DEBUG
-                    log_error( "Reached the default case which" \
-                               " shouldn't happen" );
-#endif
-
-                    break;
-                }
-            }
-        }
-    }
-
-    /* memset topic and app message buffers for later use *
+    /* memset topic and app message buffers for later use */
     memset( topic, 0, conf->topic_buff );
     memset( app_msg, 0, conf->app_msg_buff );
 

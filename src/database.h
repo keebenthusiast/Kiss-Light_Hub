@@ -28,7 +28,23 @@
 #define DEV_TYPE5 ((const char *)"rgbwbulb")
 #define DEV_TYPE6 ((const char *)"rgbcctbulb")
 #define DEV_TYPE7 ((const char *)"custom")
-#define DEV_TYPEX ((const char *)"unknown/other")
+
+// valid commands per dev type
+#define DEV_TYPE0_CMDS ((const char *)"POWER")
+#define DEV_TYPE1A_CMD ((const char *)"POWER%d,")
+#define DEV_TYPE1B_CMD ((const char *)"POWER%d")
+#define DEV_TYPE2_CMDS ((const char *)"POWER,DIMMER")
+#define DEV_TYPE3_CMDS ((const char *)"POWER,DIMMER,COLOR,WHITE,CT")
+#define DEV_TYPE4_CMDS ((const char *)"POWER,DIMMER,COLOR,HSBCOLOR")
+#define DEV_TYPE5_CMDS ((const char *)"POWER,DIMMER,COLOR,HSBCOLOR,WHITE")
+#define DEV_TYPE6_CMDS ((const char *)"POWER,DIMMER,COLOR,HSBCOLOR,WHITE,CT")
+
+// placeholder dev state
+#define DEV_STATE_TMPL ((const char *)"{\"Time\":\"UNKNOWN\",\"Uptime\":" \
+"\"UNKNOWN\",\"UptimeSec\":0,\"Heap\":0,\"SleepMode\":\"UNKNOWN\",\"Sleep" \
+"\":0,\"LoadAvg\":0,\"MqttCount\":0,\"POWER\":\"UKNOWN\",\"Wifi\":{\"AP\":0," \
+"\"SSId\":\"UNKNOWN\",\"BSSId\":\"00:00:00:00:00:00\",\"Channel\":0,\"RSSI" \
+"\":0,\"Signal\":-1,\"LinkCount\":0,\"Downtime\":\"UNKNOWN\"}}")
 
 // column names
 #define DEV_NAME  ((const char *)"dev_name")
@@ -50,6 +66,10 @@
 /* Update queries */
 #define STATE_QUERY   ((const char *)"UPDATE device SET dev_state='%s' WHERE"\
 " dev_name='%s' AND mqtt_topic='%s';")
+#define NAME_QUERY    ((const char *)"UPDATE device SET dev_name='%s' WHERE"\
+" dev_name='%s' AND mqtt_topic='%s';")
+#define MQTT_QUERY    ((const char *)"UPDATE device SET mqtt_topic='%s' "\
+"WHERE dev_name='%s' AND mqtt_topic='%s';")
 
 enum {
     DB_DATA_LEN = 64,
@@ -73,7 +93,22 @@ enum {
     DEV_TYPE5_LEN = 9,
     DEV_TYPE6_LEN = 11,
     DEV_TYPE7_LEN = 7,
-    DEV_TYPEX_LEN = 14,
+
+    // dev type valid commands
+    DEV_TYPE0_CMDS_LEN = 6,
+    DEV_TYPE1A_CMD_LEN = 8,
+    DEV_TYPE1B_CMD_LEN = 7,
+    DEV_TYPE2_CMDS_LEN = 13,
+    DEV_TYPE3_CMDS_LEN = 28,
+    DEV_TYPE4_CMDS_LEN = 28,
+    DEV_TYPE5_CMDS_LEN = 34,
+    DEV_TYPE6_CMDS_LEN = 37,
+
+    // for checking purposes.
+    DEV_TYPE_MAX = 7,
+
+    // Dev state template len
+    DV_STATE_TMPL_LEN = 265,
 
     // column name lens
     DEV_NAME_LEN = 9,
@@ -94,6 +129,8 @@ enum {
     INSERT_QUERY_LEN = 45,
     DELETE_QUERY_LEN = 56,
     STATE_QUERY_LEN = 68,
+    NAME_QUERY_LEN = 67,
+    MQTT_QUERY_LEN = 69,
 
     // Seconds to sleep
     SLEEP_DELAY = 5U,
@@ -133,6 +170,7 @@ void increment_db_count();
 int check_device_type( const int in );
 char *device_type_to_str( const int in );
 int get_digit_count( const int in );
+void powerstrip_cmnd_cat( char *dst, const int count );
 
 void *db_updater( void* args );
 

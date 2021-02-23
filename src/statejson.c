@@ -12,14 +12,21 @@
 
 // system-related includes
 #include <stdio.h>
+#include <string.h>
 
 // local includes
+#include "statejson.h"
 #include "jsmn.h"
 
-// Local constants
-const static int BUF_SIZE = 1024;
-const static int TOK_LEN = 64;
-
+/**
+ * @brief Simple function to do the strncmp work for the programmer.
+ *
+ * @param json the full json string of interest
+ * @param tok the jsmn token to be passed in.
+ * @param s the target property to compare against.
+ *
+ * @note Returns nonzero upon error.
+ */
 static int jsoneq(const char *json, jsmntok_t *tok, const char *s)
 {
     int rv = -1;
@@ -29,7 +36,7 @@ static int jsoneq(const char *json, jsmntok_t *tok, const char *s)
      *  tok->type == JSMN_STRING &&
      */
     if ( (int)strlen(s) == tok->end - tok->start &&
-         strncmp(json + tok->start, s, tok->end - tok->start) == 0)
+         strncasecmp(json + tok->start, s, tok->end - tok->start) == 0)
     {
         rv = 0;
     }
@@ -95,13 +102,13 @@ int replace_jsmn_property( char *state, const char *nstate )
     jsmn_parser pn;
     jsmntok_t t[TOK_LEN];
     jsmntok_t tn[TOK_LEN];
-    char prop[512];
-    char elem[512];
-    char end[512];
+    char prop[JSON_LEN];
+    char elem[JSON_LEN];
+    char end[JSON_LEN];
 
-    memset( prop, 0, 512 );
-    memset( elem, 0, 512 );
-    memset( end, 0, 512 );
+    memset( prop, 0, JSON_LEN );
+    memset( elem, 0, JSON_LEN );
+    memset( end, 0, JSON_LEN );
 
     jsmn_init( &p );
     jsmn_init( &pn );
@@ -147,7 +154,7 @@ int replace_jsmn_property( char *state, const char *nstate )
             memset( state + t[i + 1].end, 0, strlen(state) - t[i + 1].end );
             memcpy( state + t[i + 1].start, elem, strlen(elem) );
             memcpy( state + t[i + 1].start + strlen(elem), end, strlen(end) );
-            memset( end, 0, 512 );
+            memset( end, 0, JSON_LEN );
 
             t[i + 1].end += str_diff;
             for ( int m = (i + 2); m < r; m++ )

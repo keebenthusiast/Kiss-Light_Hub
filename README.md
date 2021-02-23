@@ -63,7 +63,21 @@ has fewer and more specific codes.
 ```plaintext
 200 series success codes:
 
-200 -- request handled successfully
+200 -- device toggled
+
+201 -- device state set
+
+202 -- device added
+
+203 -- device deleted
+
+204 -- list of devices
+
+205 -- custom command sent
+
+206 -- current device state
+
+207 -- client exit
 __________________________________________
 400 series error codes:
 
@@ -235,13 +249,11 @@ TOGGLE outlet KL/0.3
 KL/0.3 200 device outlet toggled
 ```
 
-Explicitely setting the device on or off:
-
-(One can pass in, on, 1, true for on, off, 0, false for off alternatively)
+Explicitely changing the device state:
 
 ```plaintext
 Template:
-SET <device name> <ON or OFF> KL/<version#>
+SET <device name> <command> <command arg> KL/<version#>
 KL/<version#> 200 Device <device name> <On or Off>
 
 Example in Practice:
@@ -375,10 +387,9 @@ The values in the to_change[] array correspond to the following:
 0 -- Update dev_state (most likely to be changed frequently)
 1 -- Update mqtt_name
 2 -- Update mqtt_topic
-3 -- Update device_type
-4 -- Update all of an entry (simplifies things greatly)
-5 -- Add new device to database
-6 -- Remove device from database
+3 -- Update all of an entry (simplifies things greatly)
+4 -- Add new device to database
+5 -- Remove device from database
 ```
 
 ### upon exit
