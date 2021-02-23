@@ -382,17 +382,30 @@ int main( int argc, char **argv )
     sqlite3 *db;
     int status;
 
+    /* Use specified buffer for sqlite3 usage */
+    status = sqlite3_config( SQLITE_CONFIG_HEAP, bfrs->sqlite_buffer,
+                    SQLITE_BUFFER_LEN, SQLITE_BUFFER_MIN );
+
+    if ( status != SQLITE_OK )
+    {
+#ifdef DEBUG
+    log_warn( "Unable to set SQLITE_CONFIG_HEAP, status: %d\n", status );
+#endif
+    }
+
+    /* Finaly open sqlite3 */
     status = sqlite3_open( cfg->db_loc, &db );
 
     if ( status )
     {
+        sqlite3_close( db );
+
 #ifdef DEBUG
         log_error( "Unable to open Database %s", sqlite3_errmsg(db) );
         cleanup( lg, bfrs, cfg, memory, NULL );
 #else
         cleanup( NULL, bfrs, cfg, memory, NULL );
 #endif
-        sqlite3_close( db );
 
         return 1;
     }
@@ -403,23 +416,19 @@ int main( int argc, char **argv )
 #endif
     }
 
-    /* Use specified buffer for sqlite3 usage */
-    sqlite3_config( SQLITE_CONFIG_HEAP, bfrs->sqlite_buffer,
-                    SQLITE_BUFFER_LEN, SQLITE_BUFFER_MIN );
-
     status = initialize_db( cfg, db, bfrs->sql_buffer, memory, bfrs->changes,
                             bfrs->dev_type_str, &lock, &mutex );
 
     if ( status )
     {
+        sqlite3_close( db );
+
 #ifdef DEBUG
         log_error( "Some SQL error occurred, exiting..." );
         cleanup( lg, bfrs, cfg, memory, NULL );
 #else
         cleanup( NULL, bfrs, cfg, memory, NULL );
 #endif
-        sqlite3_close( db );
-
         return 1;
     }
 
@@ -432,6 +441,8 @@ int main( int argc, char **argv )
 
     if ( sockfd_mqtt < 0 )
     {
+        sqlite3_close( db );
+
 #ifdef DEBUG
         perror("Failed to open socket: ");
         log_error( "Failed to open socket" );
@@ -441,7 +452,6 @@ int main( int argc, char **argv )
 #else
         cleanup( NULL, bfrs, cfg, memory, NULL );
 #endif
-        sqlite3_close( db );
 
         return 1;
 
@@ -462,13 +472,14 @@ int main( int argc, char **argv )
 
     if ( mqtt_stat )
     {
+        sqlite3_close( db );
+
 #ifdef DEBUG
         log_error( "Failed to initialize MQTT server, exiting..." );
         cleanup(lg, bfrs, cfg, memory, client );
 #else
         cleanup( NULL, bfrs, cfg, memory, client );
 #endif
-        sqlite3_close( db );
 
         return 1;
     }
@@ -511,13 +522,13 @@ int main( int argc, char **argv )
         }
 
         /* Cleanup and exit, this is a big deal. */
+        sqlite3_close( db );
+
 #ifdef DEBUG
         cleanup( lg, bfrs, cfg, memory, client );
 #else
         cleanup( NULL, bfrs, cfg, memory, client );
 #endif
-        sqlite3_close( db );
-
         return 1;
     }
 
@@ -540,13 +551,13 @@ int main( int argc, char **argv )
         }
 
         /* Cleanup and exit, this is a big deal. */
+        sqlite3_close( db );
+
 #ifdef DEBUG
         cleanup( lg, bfrs, cfg, memory, client );
 #else
         cleanup( NULL, bfrs, cfg, memory, client );
 #endif
-        sqlite3_close( db );
-
         return 1;
     }
 
@@ -578,12 +589,13 @@ int main( int argc, char **argv )
             pthread_join(mqtt_client_thr, NULL);
             pthread_join(database_thr, NULL);
 
+            sqlite3_close( db );
+
 #ifdef DEBUG
             cleanup( lg, bfrs, cfg, memory, client );
 #else
             cleanup( NULL, bfrs, cfg, memory, client );
 #endif
-            sqlite3_close( db );
 
             return 1;
         }
@@ -618,12 +630,13 @@ int main( int argc, char **argv )
         pthread_join(database_thr, NULL);
 
         /* Cleanup and exit, this is a big deal. */
+        sqlite3_close( db );
+
 #ifdef DEBUG
         cleanup( lg, bfrs, cfg, memory, client );
 #else
         cleanup( NULL, bfrs, cfg, memory, client );
 #endif
-        sqlite3_close( db );
 
         return 1;
     }
@@ -632,6 +645,8 @@ int main( int argc, char **argv )
      * From this point, it can be safely assumed that
      * if this point is reached, it is time to wrap up.
      */
+    sqlite3_close( db );
+
 #ifdef DEBUG
     cleanup( lg, bfrs, cfg, memory, client );
     //cleanup( lg, bfrs, cfg, memory, NULL );
@@ -639,7 +654,6 @@ int main( int argc, char **argv )
     cleanup( NULL, bfrs, cfg, memory, client );
     //cleanup( NULL, bfrs, cfg, memory, NULL );
 #endif
-    sqlite3_close( db );
 
     return 0;
 }

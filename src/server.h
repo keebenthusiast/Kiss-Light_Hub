@@ -43,9 +43,14 @@
 #define MESSAGE_205 ((const char *)"KL/%.1f 205 custom command %s %s sent\n")
 #define MESSAGE_206 ((const char *)"KL/%.1f 206 device %s state:\n")
 #define MESSAGE_207 ((const char *)"KL/%.1f 207 goodbye\n")
+#define MESSAGE_208 ((const char *)"KL/%.1f 208 dev_name %s updated to %s\n")
+#define MESSAGE_209 ((const char *)"KL/%.1f 209 dev_name %s mqtt_topic " \
+"updated to %s\n")
+#define MESSAGE_210 ((const char *)"KL/%.1f 210 dev_name %s dev_state " \
+"updated\n")
 
 #define MESSAGE_400 ((const char *)"KL/%.1f 400 bad request\n")
-#define MESSAGE_401 ((const char *)"KL/%.1f 401 device %s state unknown\n")
+//#define MESSAGE_401 ((const char *)"KL/%.1f 401 device %s state unknown\n")
 #define MESSAGE_402 ((const char *)"KL/%.1f 402 unable to delete %s\n")
 #define MESSAGE_403 ((const char *)"KL/%.1f 403 unable to add device %s\n")
 #define MESSAGE_404 ((const char *)"KL/%.1f 404 no such device %s\n")
@@ -67,6 +72,9 @@
 #define ADD_REQ     ((const char *)"ADD")
 #define DEL_REQ     ((const char *)"DELETE")
 #define UPDATE_REQ  ((const char *)"UPDATE")
+#define UPDATE_A    ((const char *)"NAME")
+#define UPDATE_B    ((const char *)"TOPIC")
+#define UPDATE_C    ((const char *)"STATE")
 #define LIST        ((const char *)"LIST")
 #define STATUS      ((const char *)"STATUS")
 #define QA          ((const char *)"Q")
@@ -105,8 +113,11 @@ enum {
     MESSAGE_205_LEN = 34,
     MESSAGE_206_LEN = 27,
     MESSAGE_207_LEN = 20,
+    MESSAGE_208_LEN = 34,
+    MESSAGE_209_LEN = 45,
+    MESSAGE_210_LEN = 40,
     MESSAGE_400_LEN = 24,
-    MESSAGE_401_LEN = 34,
+    //MESSAGE_401_LEN = 34,
     MESSAGE_402_LEN = 30,
     MESSAGE_403_LEN = 34,
     MESSAGE_404_LEN = 28,
@@ -125,6 +136,9 @@ enum {
     ADD_REQ_LEN = 3,
     DEL_REQ_LEN = 6,
     UPDATE_REQ_LEN = 6,
+    UPDATE_A_LEN = 5,
+    UPDATE_B_LEN = 6,
+    UPDATE_C_LEN = 6,
     LIST_LEN = 4,
     STATUS_LEN = 6,
     QA_LEN = 1,
@@ -137,7 +151,7 @@ enum {
     ADD_ARGA = 5,
     ADD_ARGB = 6,
     DELETE_ARG = 3,
-    UPDATE_ARG = 5,
+    UPDATE_ARG = 4,
     LIST_ARG = 2,
     STATUS_ARG = 3,
 

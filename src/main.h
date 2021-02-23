@@ -19,8 +19,8 @@
 
 enum {
     /* These MUST be exact powers of 2 */
-    SQLITE_BUFFER_LEN = 2048,
-    SQLITE_BUFFER_MIN = 64,
+    SQLITE_BUFFER_LEN = 262144,
+    SQLITE_BUFFER_MIN = 2048,
 };
 
 #endif

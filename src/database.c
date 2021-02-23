@@ -347,7 +347,7 @@ static int db_callback( void *data, int argc, char **argv, char **azColName )
        else if ( strncmp(azColName[i], VLD_CMDS, VLD_CMDS_LEN) == 0 )
        {
            strncpy( memory[db_counter].valid_cmnds, argv[i],
-           (argv_len < VLD_CMDS_LEN) ? argv_len : VLD_CMDS_LEN );
+           (argv_len < DB_CMND_LEN) ? argv_len : DB_CMND_LEN );
        }
        // a special case to get the count
        else if ( strncmp(azColName[i], COUNT, COUNT_LEN) == 0 )
@@ -386,6 +386,7 @@ static int execute_db_query( const char *query )
     {
 #ifdef DEBUG
         log_warn( "sql error: %s", errmsg );
+        printf( "full query: \n%s\n", query );
 #endif
 
         sqlite3_free( errmsg );
@@ -651,7 +652,7 @@ static int update_db_mqtt_topic( const char *omqtt_topic,
     int nmqtt_tpc_len = strlen( nmqtt_topic );
     int dev_name_len = strlen( dev_name );
 
-    snprintf( sql_buf, (NAME_QUERY_LEN + omqtt_tpc_len + nmqtt_tpc_len +
+    snprintf( sql_buf, (MQTT_QUERY_LEN + omqtt_tpc_len + nmqtt_tpc_len +
               dev_name_len), MQTT_QUERY, nmqtt_topic, dev_name, omqtt_topic );
 
     int db_ret = execute_db_query( sql_buf );
@@ -808,6 +809,7 @@ void *db_updater( void* args )
                 }
             }
 
+            /* reset to_change */
             to_change[i] = -1;
         }
 

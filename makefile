@@ -2,7 +2,6 @@ SRC = src
 CC = clang
 CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 -DLOG_USE_COLOR -DDEBUG -g
 LIBS = -pthread -lrt -ldl
-CONSTS = -DSQLITE_ENABLE_MEMSYS5
 
 _DEPS =  daemon.h ini.h args.h log.h config.h \
 server.h main.h mqtt.h mqtt_pal.h database.h \

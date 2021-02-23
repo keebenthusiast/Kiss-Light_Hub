@@ -38,6 +38,7 @@
 #include "database.h"
 #include "daemon.h"
 #include "mqtt.h"
+#include "statejson.h"
 
 #ifdef DEBUG
 #include "log.h"
@@ -75,9 +76,12 @@ static unsigned int closeSocket = 0;
 static int add_device( const char *dv_name, const char *mqtt_tpc,
                        const int dv_type, const char *vld_cmds );
 static int delete_device( char *dv_name );
+static int update_device( const char *req, const char *dev_name,
+                          const char *arg, char *buf, int *n );
 static int change_dev_state( const char *dv_name, const char *cmd, char *msg );
 static int toggle_dev_power( const char *dv_name, const char *msg );
 static void dump_devices( int fd, const int n );
+static int get_dev_state( const char *dv_name, char *buf, int *n );
 
 /*******************************************************************************
  * Non-specific server-related initializations will reside here.
@@ -603,6 +607,7 @@ static int parse_server_request( char *buf, int *n )
     }
     // UPDATE NAME old_dev_name new_dev_name KL/version#
     // UPDATE TOPIC dev_name new_mqtt_topic KL/version#
+    // UPDATE STATE dev_name KL/version#
     else if ( strncasecmp(req_args[0], UPDATE_REQ, UPDATE_REQ_LEN) == 0 )
     {
 #ifdef DEBUG
@@ -629,9 +634,20 @@ static int parse_server_request( char *buf, int *n )
         }
 
         /* execute request */
+        int status = update_device( req_args[1], req_args[2], req_args[3],
+                                    buf, n );
 
         /* verify results */
-
+        if ( status == 2 )
+        {
+            int len = strlen(req_args[1]) + MESSAGE_405_LEN;
+            *n = snprintf( buf, len, MESSAGE_405, KL_VERSION, req_args[1] );
+        }
+        else if ( status == 1 )
+        {
+            int len = strlen(req_args[2]) + MESSAGE_404_LEN;
+            *n = snprintf( buf, len, MESSAGE_404, KL_VERSION, req_args[2] );
+        }
     }
     // LIST KL/version#
     else if ( strncasecmp(req_args[0], LIST, LIST_LEN) == 0 )
@@ -692,8 +708,13 @@ static int parse_server_request( char *buf, int *n )
             return rv;
         }
 
-        /* TO BE REMOVED! */
-        *n = snprintf( buf, MESSAGE_407_LEN, MESSAGE_407, KL_VERSION );
+        int status = get_dev_state( req_args[1], buf, n );
+
+        if ( status )
+        {
+            int len = strlen(req_args[1]) + MESSAGE_404_LEN;
+            *n = snprintf(buf, len, MESSAGE_404, KL_VERSION, req_args[1] );
+        }
     }
     // allow the client to disconnect
     else if ( strncasecmp(req_args[0], QA, QA_LEN) == 0
@@ -919,6 +940,242 @@ static int delete_device( char *dv_name )
 }
 
 /**
+ * @brief Change either device's name, topic, or just get the full
+ * state of the device of interest.
+ *
+ *
+ * @param req the request, expected to be "NAME", "TOPIC", or "STATE".
+ * @param dev_name the dev_name of the device to be modified.
+ * @param arg the arg, could be new dev_name, new mqtt_topic, or just NULL.
+ * @param buf the buffer for the client, to make a tailor made response. In
+ * other words, THIS GETS MODIFIED.
+ * @param n the buffer length var. this also gets modified when buf gets
+ * modifed.
+ *
+ * @note Returns 1 for no such device, returns 2 for invalid request,
+ * returns 0 otherwise.
+ */
+static int update_device( const char *req, const char *dev_name,
+                          const char *arg, char *buf, int *n )
+{
+    int rv = 0; /* return value */
+    int loc = -1; /* location of a device match */
+
+    /* check if req is invalid */
+    if ( strncasecmp( req, UPDATE_A, UPDATE_A_LEN) != 0
+      && strncasecmp( req, UPDATE_B, UPDATE_B_LEN) != 0
+      && strncasecmp( req, UPDATE_C, UPDATE_C_LEN) != 0 )
+    {
+        return 2;
+    }
+
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    /* scan for a dev_name match */
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        if ( strncasecmp(memory[i].dev_name, dev_name, strlen(dev_name)) == 0 )
+        {
+            loc = i;
+            break;
+        }
+
+        /* No matches at all? all done */
+        if ( i == (conf->max_dev_count - 1) )
+        {
+            rv = 1;
+        }
+    }
+
+    if ( !rv )
+    {
+        /* Update dev_name */
+        if ( strncasecmp(req, UPDATE_A, UPDATE_A_LEN) == 0 )
+        {
+            if ( memory[loc].odev_name[0] == '\0' )
+            {
+                strncpy( memory[loc].odev_name, dev_name, strlen(dev_name) );
+            }
+            memset( memory[loc].dev_name, 0, DB_DATA_LEN );
+            strncpy( memory[loc].dev_name, arg, strlen(arg) );
+
+            /* set respective to_change value as needed */
+            switch( to_change[loc] )
+            {
+                case -1:
+                case 1:
+                    to_change[loc] = 1;
+                    break;
+
+                case 0:
+                {
+                    strncpy( memory[loc].omqtt_topic,
+                             memory[loc].mqtt_topic,
+                             strlen(memory[loc].mqtt_topic) );
+
+                    /* stage to a full update */
+                    to_change[loc] = 3;
+                    break;
+                }
+
+                case 2:
+                {
+                    /* stage to a full update */
+                    to_change[loc] = 3;
+                    break;
+                }
+
+                default:
+                    break;
+            }
+
+            int len = strlen(memory[loc].odev_name) + strlen(arg) +
+                      MESSAGE_208_LEN;
+            *n = snprintf( buf, len, MESSAGE_208, KL_VERSION,
+                      memory[loc].odev_name, arg );
+        }
+        /* Update mqtt topic */
+        else if ( strncasecmp(req, UPDATE_B, UPDATE_B_LEN) == 0 )
+        {
+            char tmp[DB_DATA_LEN];
+            memset( tmp, 0, DB_DATA_LEN );
+
+            if ( memory[loc].omqtt_topic[0] == '\0' )
+            {
+                /* Copy current mqtt topic to old */
+                strncpy( memory[loc].omqtt_topic, memory[loc].mqtt_topic,
+                         strlen(memory[loc].mqtt_topic) );
+            }
+            else
+            {
+                /* copy whatever is the current mqtt topic to tmp */
+                strncpy( tmp, memory[loc].mqtt_topic,
+                         strlen(memory[loc].mqtt_topic) );
+            }
+
+            /* has not been called yet this db_updater cycle */
+            if ( tmp[0] == '\0')
+            {
+                /* Set the new topic using mqtt */
+                prepare_topic( CMND, memory[loc].omqtt_topic,
+                               (char *)MQTT_UPDATE );
+                mqtt_publish( cl, topic, arg, strlen(arg),
+                              MQTT_PUBLISH_QOS_0 );
+
+                /* unsub from the old topic */
+                prepare_topic( STAT, memory[loc].omqtt_topic, (char *)RESULT );
+                mqtt_unsubscribe( cl, topic );
+            }
+            /* has been called once this db_updater cycle already */
+            else
+            {
+                /* Set the new topic using mqtt */
+                prepare_topic( CMND, tmp, (char *)MQTT_UPDATE );
+                mqtt_publish( cl, topic, arg, strlen(arg),
+                              MQTT_PUBLISH_QOS_0 );
+
+                /* unsub from the old topic */
+                prepare_topic( STAT, tmp, (char *)RESULT );
+                mqtt_unsubscribe( cl, topic );
+            }
+
+            /* memset mqtt_topic and copy new topic over */
+            memset( memory[loc].mqtt_topic, 0, DB_DATA_LEN );
+            strncpy( memory[loc].mqtt_topic, arg, strlen(arg) );
+
+            /* finally subscribe to the new topic */
+            prepare_topic( STAT, arg, (char *)RESULT );
+            mqtt_subscribe( cl, topic, 0 );
+
+            /* set respective to_change value as needed */
+            switch( to_change[loc] )
+            {
+                case -1:
+                case 2:
+                    to_change[loc] = 2;
+                    break;
+
+                case 0:
+                {
+                    strncpy( memory[loc].odev_name,
+                             memory[loc].dev_name,
+                             strlen(memory[loc].dev_name) );
+
+                    /* stage to a full update */
+                    to_change[loc] = 3;
+                    break;
+                }
+
+                case 1:
+                {
+                    /* stage to a full update */
+                    to_change[loc] = 3;
+                    break;
+                }
+
+                default:
+                    break;
+            }
+
+            int len = strlen(memory[loc].dev_name) + strlen(arg) +
+                      MESSAGE_209_LEN;
+            *n = snprintf( buf, len, MESSAGE_209, KL_VERSION,
+                      memory[loc].dev_name, arg );
+        }
+        /* Update dev_state via mqtt */
+        else if ( strncasecmp(req, UPDATE_C, UPDATE_C_LEN) == 0 )
+        {
+            prepare_topic( CMND, memory[loc].mqtt_topic, (char *)STATE );
+            mqtt_publish( cl, topic, "", 0, MQTT_PUBLISH_QOS_0 );
+
+            /* set respective to_change value as needed */
+            switch( to_change[loc] )
+            {
+                case -1:
+                case 0:
+                    to_change[loc] = 0;
+                    break;
+
+                case 1:
+                {
+                    strncpy( memory[loc].omqtt_topic,
+                             memory[loc].mqtt_topic,
+                             strlen(memory[loc].mqtt_topic) );
+
+                    /* stage to a full update */
+                    to_change[loc] = 3;
+                    break;
+                }
+
+                case 2:
+                {
+                    strncpy( memory[loc].odev_name,
+                             memory[loc].dev_name,
+                             strlen(memory[loc].dev_name) );
+
+                    /* stage to a full update */
+                    to_change[loc] = 3;
+                    break;
+                }
+
+                default:
+                    break;
+            }
+
+            int len = strlen(memory[loc].dev_name) + MESSAGE_210_LEN;
+            *n = snprintf( buf, len, MESSAGE_210, KL_VERSION,
+                      memory[loc].dev_name );
+        }
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+
+    return rv;
+}
+
+/**
  * @brief Change device's state.
  *
  * @param dv_name the device name to change.
@@ -1082,6 +1339,81 @@ static void dump_devices( int fd, const int n )
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
+}
+
+/**
+ * @brief get current device's state.
+ *
+ * @param dv_name the device name of interest.
+ * @param buf the buffer for the client, to make a tailor made response. In
+ * other words, THIS GETS MODIFIED.
+ * @param n the buffer length var. this also gets modified when buf gets
+ * modifed.
+ *
+ * @note Returns 1 for no such device error, returns 0 otherwise.
+ */
+static int get_dev_state( const char *dv_name, char *buf, int *n )
+{
+    int rv = 1; /* return value */
+    int loc = -1; /* location of a device match */
+
+    sem_wait( mutex );
+    pthread_mutex_lock( lock );
+
+    for ( int i = 0; i < conf->max_dev_count; i++ )
+    {
+        if ( strncasecmp(memory[i].dev_name, dv_name, strlen(dv_name)) == 0 )
+        {
+            rv = 0;
+            loc = i;
+            break;
+        }
+    }
+
+    if ( !rv )
+    {
+        /* create new temporary buffers */
+        char tmp[DV_STATE_LEN];
+        char tmp_cmnds[DB_CMND_LEN];
+        char elem[JSON_LEN];
+
+        /* memset these buffers to prevent problems */
+        memset( tmp, 0, DV_STATE_LEN );
+        memset( tmp_cmnds, 0, DB_CMND_LEN );
+        memset( elem, 0, JSON_LEN );
+
+        /* copy valid commands, ready to go. */
+        strncpy( tmp_cmnds, memory[loc].valid_cmnds,
+                 strlen(memory[loc].valid_cmnds) );
+
+        char *tok;
+        tok = strtok(tmp_cmnds, ",");
+
+        /* start with the desired message */
+        strncat( tmp, MESSAGE_206, MESSAGE_206_LEN );
+        strncat( tmp, ":\n", 3 );
+
+        while ( tok != 0 )
+        {
+            strncat( tmp, tok, strlen(tok) );
+            strncat( tmp, " : ", 4 );
+            find_jsmn_str( elem, tok, memory[loc].dev_state );
+            strncat( tmp, elem, strlen(elem) );
+            strncat( tmp, "\n", 2 );
+
+            /* next on the list */
+            tok = strtok( 0, "," );
+        }
+
+        /* Create response */
+        int len = strlen(memory[loc].dev_name) + strlen(tmp) + 1;
+        *n = snprintf( buf, len, tmp, KL_VERSION, memory[loc].dev_name );
+    }
+
+    pthread_mutex_unlock( lock );
+    sem_post( mutex );
+
+    return rv;
 }
 
 /**
@@ -1514,11 +1846,66 @@ void publish_kl_callback( void** client,
         }
     }
 
-    /**
-     * TODO:
-     *
-     * Analyze incoming information, and update it all
-     */
+    /* match found, update the dev_state */
+    if ( topic_found )
+    {
+        /* Check if app message is the full state */
+        if ( published->application_message_size < DV_STATE_TMPL_LEN )
+        {
+            /* change only the locations of interest */
+            replace_jsmn_property( memory[loc].dev_state, app_msg );
+        }
+        else
+        {
+            /* memset the dev_state */
+            memset( memory[loc].dev_state, 0, DV_STATE_LEN );
+
+            /* copy app_msg as state */
+            strncpy( memory[loc].dev_state, app_msg,
+                     published->application_message_size );
+        }
+
+        /* make sure a change is not already staged */
+        switch( to_change[loc] )
+        {
+            // Only state needs to be updated, continue
+            case -1:
+            case 0:
+                to_change[loc] = 0;
+                break;
+
+            // dev_name is to be updated, stage as a full update
+            case 1:
+            {
+                strncpy( memory[loc].omqtt_topic,
+                         memory[loc].mqtt_topic,
+                         strlen(memory[loc].mqtt_topic) );
+
+                to_change[loc] = 3;
+                break;
+            }
+
+            // mqtt_topic is to be updated, stage a full update
+            case 2:
+            {
+                strncpy( memory[loc].odev_name,
+                         memory[loc].dev_name,
+                         strlen(memory[loc].dev_name) );
+
+                to_change[loc] = 3;
+                break;
+            }
+
+            default:
+            {
+                /* ignore, leave value alone */
+#ifdef DEBUG
+                log_warn( "Found case %d", to_change[loc] );
+#endif
+                break;
+            }
+        }
+    }
 
     /* memset topic and app message buffers for later use */
     memset( topic, 0, conf->topic_buff );
