@@ -1405,6 +1405,9 @@ static int get_dev_state( const char *dv_name, char *buf, int *n )
             tok = strtok( 0, "," );
         }
 
+        /* create a terminating character for this. */
+        strncat( tmp, ".\n", 3 );
+
         /* Create response */
         int len = strlen(memory[loc].dev_name) + strlen(tmp) + 1;
         *n = snprintf( buf, len, tmp, KL_VERSION, memory[loc].dev_name );
