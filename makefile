@@ -1,6 +1,6 @@
 SRC = src
 CC = clang
-CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 -DLOG_USE_COLOR -DDEBUG -g
+CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 #-DLOG_USE_COLOR -DDEBUG -g
 LIBS = -pthread -lrt -ldl
 
 _DEPS =  daemon.h ini.h args.h log.h config.h \
@@ -16,11 +16,7 @@ OBJ = $(patsubst %,$(SRC)/%,$(_OBJ))
 all: kisslight
 
 %.o: %.c $(DEPS)
-	ifeq ($(DEBUG), true)
-		$(CC) $(CONSTS) -c -o $@ $< $(CFLAGS)
-	else
-		$(CC) $(DEBUG_CONSTS) -c -o $@ $< $(CFLAGS)
-	endif
+	$(CC) -c -o $@ $< $(CFLAGS)
 
 kisslight: $(OBJ)
 	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
@@ -30,6 +26,7 @@ install: kisslight
 	cp resources/kisslight.service /etc/systemd/system/
 	cp kisslight /usr/bin/
 	mkdir /var/lib/kisslight
+	mkdir /var/log/kisslight
 	sqlite3 /var/lib/kisslight/kisslight.db < resources/server-db.sql
 	systemctl daemon-reload
 	systemctl start kisslight.service

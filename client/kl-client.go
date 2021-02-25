@@ -28,62 +28,67 @@ const (
 )
 
 func Usage() {
-  fmt.Println( "To change states of existing devices:\n" )
-  fmt.Println( "usage: " + os.Args[0] + " set <device name> on|off" )
-  fmt.Println( "                  " + " toggle <device name>" )
-  fmt.Println( "                  " + " send <topic> <command>" )
-  fmt.Println( "\nAdding/deleting, status, and listing of devices:\n" )
-  fmt.Println( "usage: " + os.Args[0] + " add <device name> <mqtt_topic> <dev_type>" )
-  fmt.Println( "                  " + " delete <device name> " )
-  fmt.Println( "                  " + " status <device name>" )
-  fmt.Println( "                  " + " list" )
-  fmt.Println( "\nUpdating server IP address, or port:\n" )
+  /** TODO
+   * NEEDS WORK
+   * (ESPECIALLY THE ADDING SECTION )
+   */
+  fmt.Println( "To change states of existing devices:" )
+  fmt.Println( "usage: " + os.Args[0] + " set <device name> <command>" +
+               " <arg>" )
+  fmt.Println( "                " + " toggle <device name>" )
+  fmt.Println( "                " + " send <topic> <command>" )
+  fmt.Println( "\nAdding/deleting, status, and listing of devices:" )
+  fmt.Println( "usage: " + os.Args[0] + " add <device name> <mqtt_topic>" +
+               " <dev_type> (<valid_commands>)" )
+  fmt.Println( "                " + "(<valid_commands>) for custom or " +
+               "powerstrip devices." )
+  fmt.Println( "                " + " delete <device name> " )
+  fmt.Println( "                " + " status <device name>" )
+  fmt.Println( "                " + " list" )
+  fmt.Println( "\nUpdating device name, mqtt topic, or state:" )
+  fmt.Println( "usage: " + os.Args[0] + " update name <device name>" +
+               " <new device name>" )
+  fmt.Println( "                " + " update topic <device name>" +
+               " <new mqtt topic>" )
+  fmt.Println( "                " + " update state <device name>" )
+  fmt.Println( "\nUpdating server IP address, or port:" )
   fmt.Println( "usage: " + os.Args[0] + " ip <IP address>" )
-  fmt.Println( "                  " + " port <port number>" )
+  fmt.Println( "                " + " port <port number>" )
 }
 
 /* Set device on or off */
 func SetDev( conn net.Conn ) {
 
-  if ( len(os.Args) > 3 ) {
+  if ( len(os.Args) > 4 ) {
 
-    if ( os.Args[3] == "on" || os.Args[3] == "off" ) {
+    arg3 := strings.ToUpper( os.Args[3] )
+    arg4 := strings.ToUpper( os.Args[4] )
 
-      arg3 := strings.ToUpper( os.Args[3] )
+    /* Send command */
+    fmt.Fprintf( conn, "SET %s %s %s KL/%.1f\n", os.Args[2], arg3,
+                arg4, KLVersion )
 
-      /* Send command */
-      fmt.Fprintf( conn, "SET %s %s KL/%.1f\n", os.Args[2], arg3, KLVersion )
+    /* Read, and parse the response */
+    reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
+    replyParse := strings.Split( reply, " " )
+    statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
 
-      /* Read, and parse the response */
-      reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
-      replyParse := strings.Split( reply, " " )
-      statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
+    /* Give indication on how well the server responded */
+    if ( statusCode == 201 ) {
 
-      /* Give indication on how well the server responded */
-      if ( statusCode == 200 ) {
-
-        fmt.Printf( "successfully set device %s %s\n", os.Args[2], os.Args[3] )
-
-      } else {
-
-        fmt.Printf( "cannot set device %s %s, server returned %d\n",
-                    os.Args[2], os.Args[3], statusCode )
-
-      }
+      fmt.Printf( "successfully set device %s %s\n", os.Args[2], os.Args[3] )
 
     } else {
 
-      fmt.Printf( "unknown option %s, must pass in \"on\" or \"off\"\n", os.Args[3] )
-
+      fmt.Printf( "cannot set device %s %s, server returned %d\n",
+                  os.Args[2], os.Args[3], statusCode )
     }
 
   } else {
 
-    fmt.Printf( "not enough args\n" );
-    fmt.Printf( "usage: %s set <device name> on|off\n", os.Args[0] )
-
+    fmt.Printf( "not enough args\n" )
+    fmt.Printf( "usage: %s set <device name> <command> <arg>\n", os.Args[0] )
   }
-
 }
 
 /* Toggles a device, given a device name is passed through */
@@ -108,16 +113,13 @@ func Toggle( conn net.Conn ) {
 
       fmt.Printf( "cannot toggle device %s, server returned %d\n",
                   os.Args[2], statusCode )
-
     }
 
   } else {
 
-    fmt.Printf( "pass in a device name to toggle\n" );
-    fmt.Printf( "Usage: %s toggle <dev_name>\n", os.Args[0] );
-
+    fmt.Printf( "pass in a device name to toggle\n" )
+    fmt.Printf( "Usage: %s toggle <dev_name>\n", os.Args[0] )
   }
-
 }
 
 /* Allows the user to send a custom code entirely */
@@ -126,7 +128,8 @@ func SendCustomCode( conn net.Conn ) {
   if ( len(os.Args) > 3 ) {
 
     /* Send command */
-    fmt.Fprintf( conn, "TRANSMIT %s %s KL/%.1f\n", os.Args[2], os.Args[3], KLVersion )
+    fmt.Fprintf( conn, "TRANSMIT %s %s KL/%.1f\n", os.Args[2], os.Args[3],
+                 KLVersion )
 
     /* Read, and parse the response */
     reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
@@ -134,36 +137,57 @@ func SendCustomCode( conn net.Conn ) {
     statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
 
     /* Give indication on how well the server responded */
-    if ( statusCode == 200 ) {
+    if ( statusCode == 205 ) {
 
       fmt.Printf( "transmitted %s %s successfully\n", os.Args[2], os.Args[3] )
 
     } else {
 
-      fmt.Printf( "unable to transmit custom topic %s with command %s, server returned %d\n",
-                  os.Args[2], os.Args[3], statusCode )
+      fmt.Printf( "unable to transmit custom topic %s with command %s, " +
+                  "server returned %d\n", os.Args[2], os.Args[3], statusCode )
     }
 
   } else {
 
-    fmt.Printf( "not enough args\n" );
-    fmt.Printf( "usage: %s set <device name> on|off\n", os.Args[0] )
-
+    fmt.Printf( "not enough args\n" )
+    fmt.Printf( "usage: %s send <topic> <command>\n", os.Args[0] )
   }
 }
 
 /* Allows user to add device, optionally manually */
 func AddDev( conn net.Conn ) int {
 
-  /* make sure arg count is greater than, or equal to 3 before continuing */
+  /* make sure arg count is greater than, or equal to 4 before continuing */
   /* Check if user wants to add device manually. */
-
   if ( len(os.Args) > 4 ) {
 
       /* Send command */
       dev_type, _ := strconv.Atoi( os.Args[4] )
 
-      fmt.Fprintf( conn, "ADD %s %s %d KL/%.1f\n", os.Args[2], os.Args[3], dev_type, KLVersion )
+      switch dev_type {
+
+      case 1, 7:
+          if ( len(os.Args) == 5 ) {
+
+            /** TODO
+             * NEEDS WORK
+             */
+            fmt.Printf( "cannot add, not enough arguments\n" )
+            fmt.Printf( "usage: %s add <device name> <mqtt_topic> %s %s",
+                  "<dev_type>", os.Args[0], "(<valid_commands>)\n" )
+            fmt.Printf( "(<valid_commands>) for custom or powerstrip %s\n",
+                  "devices." )
+
+            return 1
+          }
+
+          fmt.Fprintf( conn, "ADD %s %s %d %s KL/%.1f\n", os.Args[2],
+                   os.Args[3], dev_type, os.Args[4], KLVersion )
+
+      default:
+          fmt.Fprintf( conn, "ADD %s %s %d KL/%.1f\n", os.Args[2], os.Args[3],
+                   dev_type, KLVersion )
+      }
 
       /* Read, and parse the response */
       reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
@@ -171,20 +195,25 @@ func AddDev( conn net.Conn ) int {
       statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
 
       /* Give indication on how well the server responded */
-      if ( statusCode == 200 ) {
+      if ( statusCode == 202 ) {
 
         fmt.Printf( "added Device %s successfully\n", os.Args[2] )
 
       } else {
 
-        fmt.Printf( "unable to add device %s, server returned %d\n", os.Args[2], statusCode )
-
+        fmt.Printf( "unable to add device %s, server returned %d\n",
+                    os.Args[2], statusCode )
       }
 
     } else {
 
-      fmt.Printf( "cannot add, not enough arguments\n" );
-      fmt.Printf( "usage: %s add <device name> <mqtt_topic> <dev_type>\n", os.Args[0] )
+      /** TODO
+       * NEEDS WORK
+       */
+      fmt.Printf( "cannot add, not enough arguments\n" )
+      fmt.Printf( "usage: %s add <device name> <mqtt_topic> <dev_type> %s",
+                  os.Args[0], "(<valid_commands>)\n" )
+      fmt.Printf( "(<valid_commands>) for custom or powerstrip devices.\n" )
     }
 
   return 0
@@ -204,7 +233,7 @@ func DeleteDev( conn net.Conn ) {
     statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
 
     /* Give indication on how well the server responded */
-    if ( statusCode == 200 ) {
+    if ( statusCode == 203 ) {
 
       fmt.Printf( "deleted device %s successfully\n", os.Args[2] )
 
@@ -212,16 +241,14 @@ func DeleteDev( conn net.Conn ) {
 
       fmt.Printf( "unable to delete device %s, server returned %d\n",
                   os.Args[2], statusCode )
-
     }
 
   } else {
 
-    fmt.Printf( "pass in a device name to delete\n" );
-    fmt.Printf( "Usage: %s delete <dev_name>\n", os.Args[0] );
+    fmt.Printf( "pass in a device name to delete\n" )
+    fmt.Printf( "Usage: %s delete <dev_name>\n", os.Args[0] )
 
   }
-
 }
 
 /* Show user a list of readily-available devices */
@@ -238,51 +265,154 @@ func GetList( conn net.Conn ) {
   dev := strings.Split( replyParse[5], "\n" )
   devCount, _ := strconv.ParseInt( dev[0], 10, 10 )
 
-  if ( statusCode == 200 ) {
+  if ( statusCode == 204 ) {
 
     fmt.Printf( "here is the list of %d devices:\n", devCount )
     fmt.Printf( "(device name -- mqtt topic -- device type)\n" )
 
-    for i := int64(0); i < devCount; i++  {
+    for i := int64(0); i < devCount; i++ {
 
       reply.Scan()
       fmt.Printf( "%s\n", reply.Text() )
-
     }
 
   } else {
 
-    fmt.Printf( "error occured while listing, server returned %d\n", statusCode )
-
+    fmt.Printf( "error occured while listing, server returned %d\n",
+                statusCode )
   }
 }
 
-func getStatus( conn net.Conn ){
+/* Get status of the device of interest */
+func GetStatus( conn net.Conn ){
 
   if ( len(os.Args) > 2 ) {
 
     fmt.Fprintf( conn, "STATUS %s KL/%.1f", os.Args[2], KLVersion )
 
     /* Read, and parse the response */
+    reader := bufio.NewReader( conn )
+    reply, _, _ := reader.ReadLine()
+    replyParse := strings.Split( string(reply), " " )
+    statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
+
+    if ( statusCode == 206 ) {
+
+      fmt.Printf( "device %s state is currently:\n", os.Args[2] )
+
+      for {
+
+        reply, _, _ = reader.ReadLine()
+
+        terminatingChar := string(reply)
+
+        /* Check if it is the terminating character */
+        if ( strings.EqualFold(terminatingChar, ".") ) {
+
+          break
+        }
+
+        fmt.Println( string(reply) )
+      }
+
+    } else if ( statusCode == 401 ) {
+
+      fmt.Printf( "server returned response code %d\n", statusCode )
+
+    } else {
+
+      fmt.Printf( "unable get device status for %s, server returned %d\n",
+                  os.Args[2], statusCode )
+    }
+
+  } else {
+
+    fmt.Printf( "pass in a device name to get the current status\n" )
+    fmt.Printf( "usage: %s status <device name>\n", os.Args[0] )
+  }
+}
+
+func UpdateDevice( conn net.Conn ) {
+
+  if ( len(os.Args) > 3 ) {
+
+    if ( strings.EqualFold(os.Args[2], "name") ) {
+
+      if ( len(os.Args) > 5 ) {
+
+        fmt.Printf( "not enough args\n" )
+        fmt.Printf( "usage: %s name <device name> <new device name>\n",
+                os.Args[0] )
+        fmt.Printf( "       %s topic <device name> <new mqtt topic>\n",
+                os.Args[0] )
+        fmt.Printf( "       %s state <device name>\n", os.Args[0] )
+
+        return
+      }
+
+      fmt.Fprintf( conn, "UPDATE NAME %s %s KL/%.1f", os.Args[3], os.Args[4],
+               KLVersion )
+
+    } else if ( strings.EqualFold(os.Args[2], "topic") ) {
+
+      if ( len(os.Args) > 5 ) {
+
+        fmt.Printf( "not enough args\n" )
+        fmt.Printf( "usage: %s name <device name> <new device name>\n",
+                os.Args[0] )
+        fmt.Printf( "       %s topic <device name> <new mqtt topic>\n",
+                os.Args[0] )
+        fmt.Printf( "       %s state <device name>\n", os.Args[0] )
+
+        return
+      }
+
+      fmt.Fprintf( conn, "UPDATE TOPIC %s %s KL/%.1f", os.Args[3], os.Args[4],
+               KLVersion )
+
+    } else if ( strings.EqualFold(os.Args[2], "state") ) {
+
+      fmt.Fprintf( conn, "UPDATE STATE %s KL/%.1f", os.Args[3], KLVersion )
+
+    } else {
+
+      fmt.Printf( "update %s not valid.\n", os.Args[2] )
+      fmt.Printf( "usage: %s name <device name> <new device name>\n",
+                os.Args[0] )
+      fmt.Printf( "       %s topic <device name> <new mqtt topic>\n",
+                os.Args[0] )
+      fmt.Printf( "       %s state <device name>\n", os.Args[0] )
+
+      return
+    }
+
+    /* Read, and parse the response */
     reply, _ := bufio.NewReader( conn ).ReadString( '\n' )
     replyParse := strings.Split( reply, " " )
     statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
 
-    if ( statusCode == 200 || statusCode == 401 ) {
+    /* Give indication on how well the server responded */
+    switch statusCode {
+      case 208, 209:
+        fmt.Printf( "updated device %s %s to %s\n", os.Args[3], os.Args[2],
+                os.Args[4] )
 
-      fmt.Printf( "device %s state is currently %s\n", os.Args[2], replyParse[5] )
+      case 210:
+        fmt.Printf( "updated device %s state\n", os.Args[3] )
 
-      if ( statusCode == 401 ) {
-
-        fmt.Printf( "server returned response code %d\n", statusCode )
-
-      }
-
-    } else {
-
-      fmt.Printf( "unable get device status for %s, server returned %d\n", os.Args[2], statusCode )
-
+      default:
+        fmt.Printf( "Unable to update %s for %s, server returned %d\n",
+                os.Args[2], os.Args[3], statusCode )
     }
+
+  } else {
+
+    fmt.Printf( "not enough args\n" )
+    fmt.Printf( "usage: %s name <device name> <new device name>\n",
+                os.Args[0] )
+    fmt.Printf( "       %s topic <device name> <new mqtt topic>\n",
+                os.Args[0] )
+    fmt.Printf( "       %s state <device name>\n", os.Args[0] )
   }
 }
 
@@ -303,26 +433,26 @@ func main() {
   }
 
   /* Check if there is any ini file modifications to be made */
-  if ( os.Args[1] == "ip" ) {
+  if ( strings.EqualFold(os.Args[1], "ip") ) {
 
     if ( len(os.Args) > 2 ) {
 
-      cfg.Section( "network" ).Key( "ipaddr" ).SetValue( os.Args[2] );
-      cfg.SaveTo( usr + "/.config/kisslight/kl-client.ini" );
+      cfg.Section( "network" ).Key( "ipaddr" ).SetValue( os.Args[2] )
+      cfg.SaveTo( usr + "/.config/kisslight/kl-client.ini" )
 
-      fmt.Printf( "IP address %s set\n", os.Args[2] );
+      fmt.Printf( "IP address %s set\n", os.Args[2] )
 
     } else {
 
-      fmt.Printf( "please specify IP address\n" );
-      fmt.Printf( "usage: %s ip <IP address>\n", os.Args[0] );
+      fmt.Printf( "please specify IP address\n" )
+      fmt.Printf( "usage: %s ip <IP address>\n", os.Args[0] )
 
       os.Exit( 1 )
     }
 
     os.Exit( 0 )
 
-  } else if ( os.Args[1] == "port" ) {
+  } else if ( strings.EqualFold(os.Args[1], "port") ) {
 
     if ( len(os.Args) > 2 ) {
 
@@ -330,22 +460,22 @@ func main() {
 
       if ( port > 65535 || port < 1 ) {
 
-        fmt.Printf( "port number should be between 1 and 65535\n" );
-        fmt.Printf( "usage: %s port <port number>\n", os.Args[0] );
+        fmt.Printf( "port number should be between 1 and 65535\n" )
+        fmt.Printf( "usage: %s port <port number>\n", os.Args[0] )
 
         os.Exit( 1 )
 
       }
 
-      cfg.Section( "network" ).Key( "port" ).SetValue( strconv.Itoa( port ) )
+      cfg.Section( "network" ).Key( "port" ).SetValue( strconv.Itoa(port) )
       cfg.SaveTo( usr + "/.config/kisslight/kl-client.ini" )
 
-      fmt.Printf( "port %d set\n", port );
+      fmt.Printf( "port %d set\n", port )
 
       } else {
 
-        fmt.Printf( "please specify port number\n" );
-        fmt.Printf( "usage: %s port <port number>\n", os.Args[0] );
+        fmt.Printf( "please specify port number\n" )
+        fmt.Printf( "usage: %s port <port number>\n", os.Args[0] )
 
         os.Exit( 1 )
       }
@@ -355,40 +485,45 @@ func main() {
   }
 
   /* connect to this socket, and port */
-  conn, _ := net.Dial( "tcp", cfg.Section("network").Key("ipaddr").String() + ":" +
-                        strconv.Itoa(cfg.Section("network").Key("port").RangeInt(1155, 1, 65535)) )
+  conn, _ := net.Dial( "tcp", cfg.Section("network").Key("ipaddr").String() +
+                        ":" + strconv.Itoa(cfg.Section("network").Key(
+                        "port").RangeInt(1155, 1, 65535)) )
 
   /* ignore socket closing errors. */
   defer conn.Close()
 
   /* Parse first argument */
-  if ( os.Args[1] == "set" ) {
+  if ( strings.EqualFold(os.Args[1], "set") ) {
 
     SetDev( conn )
 
-  } else if ( os.Args[1] == "toggle" ) {
+  } else if ( strings.EqualFold(os.Args[1], "toggle") ) {
 
     Toggle( conn )
 
-  } else if ( os.Args[1] == "send" ) {
+  } else if ( strings.EqualFold(os.Args[1], "send") ) {
 
     SendCustomCode( conn )
 
-  } else if ( os.Args[1] == "add" ) {
+  } else if ( strings.EqualFold(os.Args[1], "add") ) {
 
     AddDev( conn )
 
-  } else if ( os.Args[1] == "delete" ) {
+  } else if ( strings.EqualFold(os.Args[1], "delete") ) {
 
     DeleteDev( conn )
 
-  }  else if ( os.Args[1] == "list" ) {
+  } else if ( strings.EqualFold(os.Args[1], "update") ) {
+
+    UpdateDevice( conn )
+
+  }  else if ( strings.EqualFold(os.Args[1], "list") ) {
 
     GetList( conn )
 
-  } else if ( os.Args[1] == "status" ) {
+  } else if ( strings.EqualFold(os.Args[1], "status") ) {
 
-    getStatus( conn )
+    GetStatus( conn )
 
   } else {
 
