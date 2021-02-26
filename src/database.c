@@ -320,6 +320,12 @@ int initialize_db( config *cfg, sqlite3 *db, char *sql_buffer, db_data *dat,
  */
 static int db_callback( void *data, int argc, char **argv, char **azColName )
 {
+    /* skip this request if there are too many devices */
+    if ( db_counter == conf->max_dev_count )
+    {
+        return 0;
+    }
+
     for ( int i = 0; i < argc; i++ )
     {
         // temporary variable
@@ -354,6 +360,10 @@ static int db_callback( void *data, int argc, char **argv, char **azColName )
        {
            /* set the global variable */
            db_len = atoi( argv[i] );
+
+           /* though make sure to ignore subsequent entries if needed */
+           db_len = (db_len > conf->max_dev_count) ?
+                     conf->max_dev_count : db_len;
        }
        else
        {
@@ -427,7 +437,7 @@ static int get_db_len()
     int db_ret = execute_db_query( sql_buf );
 
     /* only if everything is successful */
-    if ( db_len >= 0 )
+    if ( db_len >= 0 && (!db_ret) )
     {
 #ifdef DEBUG
         log_trace( "Amount of devices currently: %d", db_len );
@@ -698,11 +708,6 @@ void *db_updater( void* args )
 
             switch( to_change[i] )
             {
-                // No changes needed
-                case -1:
-                    /* Do Nothing */
-                    break;
-
                 // Update i's dev_state
                 case 0:
                 {
@@ -771,9 +776,6 @@ void *db_updater( void* args )
                                      memory[i].dev_type, memory[i].dev_state,
                                      memory[i].valid_cmnds );
 
-                    /* update the db_len variable */
-                    get_db_len();
-
                     break;
                 }
 
@@ -782,9 +784,6 @@ void *db_updater( void* args )
                 {
                     delete_db_entry( memory[i].odev_name,
                                      memory[i].omqtt_topic );
-
-                    /* update the deb_len variable */
-                    get_db_len();
 
                     /*
                      * dev_name and mqtt topic already reset, so

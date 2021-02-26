@@ -85,7 +85,9 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
     );
 
     // One big loop to avoid the need for several
-    for ( int i = 0; i < cfg->max_dev_count; i++ )
+    int len = ( cfg->max_dev_count > (POLL_SIZE - 1) ) ?
+                cfg->max_dev_count : (POLL_SIZE - 1);
+    for ( int i = 0; i < len; i++ )
     {
         if ( i < (POLL_SIZE - 1) )
         {
@@ -96,17 +98,20 @@ static void allocate_buffers( buffers *bfrs, config *cfg, db_data *memory )
         }
 
         /* initialize the changes buffer too */
-        bfrs->changes[i] = -1;
+        if ( i < cfg->max_dev_count )
+        {
+            bfrs->changes[i] = -1;
 
-        memset( memory[i].dev_name, 0, DB_DATA_LEN );
-        memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
-        memory[i].dev_type = -1;
-        memset( memory[i].dev_state, 0, DV_STATE_LEN );
-        memset( memory[i].valid_cmnds, 0, DB_CMND_LEN );
+            memset( memory[i].dev_name, 0, DB_DATA_LEN );
+            memset( memory[i].mqtt_topic, 0, DB_DATA_LEN );
+            memory[i].dev_type = -1;
+            memset( memory[i].dev_state, 0, DV_STATE_LEN );
+            memset( memory[i].valid_cmnds, 0, DB_CMND_LEN );
 
 
-        memset( memory[i].odev_name, 0, DB_DATA_LEN );
-        memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+            memset( memory[i].odev_name, 0, DB_DATA_LEN );
+            memset( memory[i].omqtt_topic, 0, DB_DATA_LEN );
+        }
     }
 
 #ifdef DEBUG

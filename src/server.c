@@ -1304,6 +1304,8 @@ static int toggle_dev_power( const char *dv_name, const char *msg )
  * @param n the client's buffer number
  *
  * @note This uses semaphores since it access memory to satisfy the request.
+ *
+ * TODO: This may need an overhaul, similar to get_dev_state()
  */
 static void dump_devices( int fd, const int n )
 {
