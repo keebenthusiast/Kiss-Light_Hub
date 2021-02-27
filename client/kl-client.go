@@ -28,10 +28,6 @@ const (
 )
 
 func Usage() {
-  /** TODO
-   * NEEDS WORK
-   * (ESPECIALLY THE ADDING SECTION )
-   */
   fmt.Println( "To change states of existing devices:" )
   fmt.Println( "usage: " + os.Args[0] + " set <device name> <command>" +
                " <arg>" )
@@ -39,12 +35,15 @@ func Usage() {
   fmt.Println( "                " + " send <topic> <command>" )
   fmt.Println( "\nAdding/deleting, status, and listing of devices:" )
   fmt.Println( "usage: " + os.Args[0] + " add <device name> <mqtt_topic>" +
-               " <dev_type> (<valid_commands>)" )
+               " <device type> (<valid_commands>)" )
   fmt.Println( "                " + "(<valid_commands>) for custom or " +
                "powerstrip devices." )
-  fmt.Println( "                " + " delete <device name> " )
+  fmt.Println( "                " + " delete <device name>" )
   fmt.Println( "                " + " status <device name>" )
   fmt.Println( "                " + " list" )
+  fmt.Println( "\nvalid device types:" )
+  fmt.Println( "[0|outlet], [1|strip], [2|dim], [3|cct], [4|rgb]" +
+               "[5|rgbw], [6|rgbcct], [7|custom]" )
   fmt.Println( "\nUpdating device name, mqtt topic, or state:" )
   fmt.Println( "usage: " + os.Args[0] + " update name <device name>" +
                " <new device name>" )
@@ -91,7 +90,7 @@ func SetDev( conn net.Conn ) {
   }
 }
 
-/* Toggles a device, given a device name is passed through */
+/* Toggles specified device power, given a device name is passed through */
 func Toggle( conn net.Conn ) {
 
   if ( len(os.Args) > 2 ) {
@@ -107,18 +106,18 @@ func Toggle( conn net.Conn ) {
     /* Give indication on how well the server responded */
     if ( statusCode == 200 ) {
 
-      fmt.Printf( "toggled device %s successfully\n", os.Args[2] )
+      fmt.Printf( "toggled device %s power successfully\n", os.Args[2] )
 
     } else {
 
-      fmt.Printf( "cannot toggle device %s, server returned %d\n",
+      fmt.Printf( "cannot toggle device %s power, server returned %d\n",
                   os.Args[2], statusCode )
     }
 
   } else {
 
-    fmt.Printf( "pass in a device name to toggle\n" )
-    fmt.Printf( "Usage: %s toggle <dev_name>\n", os.Args[0] )
+    fmt.Printf( "pass in a device name to toggle its power\n" )
+    fmt.Printf( "usage: %s toggle <dev_name>\n", os.Args[0] )
   }
 }
 
@@ -161,32 +160,119 @@ func AddDev( conn net.Conn ) int {
   /* Check if user wants to add device manually. */
   if ( len(os.Args) > 4 ) {
 
-      /* Send command */
-      dev_type, _ := strconv.Atoi( os.Args[4] )
+      /* Verify input */
+      switch {
 
-      switch dev_type {
+        case strings.EqualFold(os.Args[4], "1"),
+             strings.EqualFold(os.Args[4], "powerstrip"),
+             strings.EqualFold(os.Args[4], "strip"),
+             strings.EqualFold(os.Args[4], "7"),
+             strings.EqualFold(os.Args[4], "custom"):
 
-      case 1, 7:
-          if ( len(os.Args) == 5 ) {
+             /* verify arg len for this type of device */
+             if ( len(os.Args) == 5 ) {
 
-            /** TODO
-             * NEEDS WORK
-             */
-            fmt.Printf( "cannot add, not enough arguments\n" )
-            fmt.Printf( "usage: %s add <device name> <mqtt_topic> %s %s",
-                  "<dev_type>", os.Args[0], "(<valid_commands>)\n" )
-            fmt.Printf( "(<valid_commands>) for custom or powerstrip %s\n",
-                  "devices." )
+              fmt.Printf( "cannot add, not enough arguments\n" )
+              fmt.Printf( "usage: %s add <device name> <mqtt_topic> %s %s",
+                          os.Args[0], "<device type>", "(<valid_commands>)\n" )
+              fmt.Printf( "(<valid_commands>) for custom or powerstrip %s\n",
+                    "devices." )
+              fmt.Println( "\nvalid device types:" )
+              fmt.Println( "[0|outlet], [1|strip], [2|dim], [3|cct], [4|rgb]" +
+                           "[5|rgbw], [6|rgbcct], [7|custom]" )
 
-            return 1
-          }
+              return 1
+             }
 
-          fmt.Fprintf( conn, "ADD %s %s %d %s KL/%.1f\n", os.Args[2],
-                   os.Args[3], dev_type, os.Args[4], KLVersion )
+             /*determine exact device type as an integer */
+             devType := -1
 
-      default:
-          fmt.Fprintf( conn, "ADD %s %s %d KL/%.1f\n", os.Args[2], os.Args[3],
-                   dev_type, KLVersion )
+             switch {
+              case strings.EqualFold(os.Args[4], "1"),
+                   strings.EqualFold(os.Args[4], "powerstrip"),
+                   strings.EqualFold(os.Args[4], "strip"):
+                   devType = 1
+
+              case strings.EqualFold(os.Args[4], "7"),
+                   strings.EqualFold(os.Args[4], "custom"):
+                   devType = 7
+             }
+
+             /* Send command */
+             fmt.Fprintf( conn, "ADD %s %s %d %s KL/%.1f\n", os.Args[2],
+                          os.Args[3], devType, os.Args[5], KLVersion )
+
+        case strings.EqualFold(os.Args[4], "0"),
+             strings.EqualFold(os.Args[4], "outlet"),
+             strings.EqualFold(os.Args[4], "toggleable"),
+             strings.EqualFold(os.Args[4], "2"),
+             strings.EqualFold(os.Args[4], "dim"),
+             strings.EqualFold(os.Args[4], "dimmable"),
+             strings.EqualFold(os.Args[4], "dimmablebulb"),
+             strings.EqualFold(os.Args[4], "3"),
+             strings.EqualFold(os.Args[4], "cct"),
+             strings.EqualFold(os.Args[4], "cctbulb"),
+             strings.EqualFold(os.Args[4], "4"),
+             strings.EqualFold(os.Args[4], "rgb"),
+             strings.EqualFold(os.Args[4], "rgbbulb"),
+             strings.EqualFold(os.Args[4], "5"),
+             strings.EqualFold(os.Args[4], "rgbw"),
+             strings.EqualFold(os.Args[4], "rgbwbulb"),
+             strings.EqualFold(os.Args[4], "6"),
+             strings.EqualFold(os.Args[4], "rgbcct"),
+             strings.EqualFold(os.Args[4], "rgbcctbulb"):
+
+             /*determine exact device type as an integer */
+             devType := -1
+
+             switch {
+               case strings.EqualFold(os.Args[4], "0"),
+                    strings.EqualFold(os.Args[4], "outlet"),
+                    strings.EqualFold(os.Args[4], "toggleable"):
+                    devType = 0
+
+               case strings.EqualFold(os.Args[4], "2"),
+                    strings.EqualFold(os.Args[4], "dim"),
+                    strings.EqualFold(os.Args[4], "dimmable"),
+                    strings.EqualFold(os.Args[4], "dimmablebulb"):
+                    devType = 2
+
+               case strings.EqualFold(os.Args[4], "3"),
+                    strings.EqualFold(os.Args[4], "cct"),
+                    strings.EqualFold(os.Args[4], "cctbulb"):
+                    devType = 3
+
+               case strings.EqualFold(os.Args[4], "4"),
+                    strings.EqualFold(os.Args[4], "rgb"),
+                    strings.EqualFold(os.Args[4], "rgbbulb"):
+                    devType = 4
+
+               case strings.EqualFold(os.Args[4], "5"),
+                    strings.EqualFold(os.Args[4], "rgbw"),
+                    strings.EqualFold(os.Args[4], "rgbwbulb"):
+                    devType = 5
+
+               case strings.EqualFold(os.Args[4], "6"),
+                    strings.EqualFold(os.Args[4], "rgbcct"),
+                    strings.EqualFold(os.Args[4], "rgbcctbulb"):
+                    devType = 6
+             }
+
+            /* Send command */
+             fmt.Fprintf( conn, "ADD %s %s %d KL/%.1f\n", os.Args[2],
+                          os.Args[3], devType, KLVersion )
+
+        default:
+          fmt.Printf( "cannot add, invalid device type %s\n", os.Args[4] )
+          fmt.Printf( "usage: %s add <device name> <mqtt_topic> %s %s",
+              os.Args[0], "<device type>", "(<valid_commands>)\n" )
+          fmt.Printf( "(<valid_commands>) for custom or powerstrip %s\n",
+              "devices." )
+          fmt.Println( "\nvalid device types:" )
+          fmt.Println( "[0|outlet], [1|strip], [2|dim], [3|cct], [4|rgb]" +
+                       "[5|rgbw], [6|rgbcct], [7|custom]" )
+
+          return 1
       }
 
       /* Read, and parse the response */
@@ -197,7 +283,7 @@ func AddDev( conn net.Conn ) int {
       /* Give indication on how well the server responded */
       if ( statusCode == 202 ) {
 
-        fmt.Printf( "added Device %s successfully\n", os.Args[2] )
+        fmt.Printf( "added device %s successfully\n", os.Args[2] )
 
       } else {
 
@@ -207,13 +293,13 @@ func AddDev( conn net.Conn ) int {
 
     } else {
 
-      /** TODO
-       * NEEDS WORK
-       */
       fmt.Printf( "cannot add, not enough arguments\n" )
-      fmt.Printf( "usage: %s add <device name> <mqtt_topic> <dev_type> %s",
+      fmt.Printf( "usage: %s add <device name> <mqtt_topic> <device type> %s",
                   os.Args[0], "(<valid_commands>)\n" )
       fmt.Printf( "(<valid_commands>) for custom or powerstrip devices.\n" )
+      fmt.Println( "\nvalid device types:" )
+      fmt.Println( "[0|outlet], [1|strip], [2|dim], [3|cct], [4|rgb]" +
+                   "[5|rgbw], [6|rgbcct], [7|custom]" )
     }
 
   return 0
@@ -258,9 +344,9 @@ func GetList( conn net.Conn ) {
   fmt.Fprintf( conn, "LIST KL/%.1f\n", KLVersion )
 
   /* Read, and parse the response */
-  reply := bufio.NewScanner( conn )
-  reply.Scan()
-  replyParse := strings.Split( reply.Text(), " " )
+  reader := bufio.NewReader( conn )
+  reply, _, _ := reader.ReadLine()
+  replyParse := strings.Split( string(reply), " " )
   statusCode, _ := strconv.ParseInt( replyParse[1], 10, 10 )
   dev := strings.Split( replyParse[5], "\n" )
   devCount, _ := strconv.ParseInt( dev[0], 10, 10 )
@@ -270,10 +356,19 @@ func GetList( conn net.Conn ) {
     fmt.Printf( "here is the list of %d devices:\n", devCount )
     fmt.Printf( "(device name -- mqtt topic -- device type)\n" )
 
-    for i := int64(0); i < devCount; i++ {
+    for {
 
-      reply.Scan()
-      fmt.Printf( "%s\n", reply.Text() )
+      reply, _, _ = reader.ReadLine()
+
+      terminatingChar := string(reply)
+
+      /* Check if it is the terminating character */
+      if ( strings.EqualFold(terminatingChar, ".") ) {
+
+        break
+      }
+
+      fmt.Println( string(reply) )
     }
 
   } else {
@@ -393,6 +488,7 @@ func UpdateDevice( conn net.Conn ) {
 
     /* Give indication on how well the server responded */
     switch statusCode {
+
       case 208, 209:
         fmt.Printf( "updated device %s %s to %s\n", os.Args[3], os.Args[2],
                 os.Args[4] )
