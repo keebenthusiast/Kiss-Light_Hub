@@ -1,19 +1,21 @@
 SRC = src
-CC = gcc
-CFLAGS = -g -Wall
-LIBS = -lsqlite3 -pthread -lrt
+CC = clang
+CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 #-DLOG_USE_COLOR -DDEBUG -g
+LIBS = -pthread -lrt -ldl
 
-_DEPS = common.h daemon.h ini.h \
-log.h server.h main.h mqtt.h mqtt_pal.h
+_DEPS =  daemon.h ini.h args.h log.h config.h \
+server.h main.h mqtt.h mqtt_pal.h database.h \
+statejson.h jsmn.h sqlite3/sqlite.h
 DEPS = $(patsubst %,$(SRC)/%,$(_DEPS))
 
-_OBJ = common.o log.o server.o \
-daemon.o ini.o main.o mqtt.o mqtt_pal.o
+_OBJ = log.o server.o daemon.o args.o config.o \
+ini.o main.o mqtt.o mqtt_pal.o database.o \
+statejson.o sqlite3/sqlite3.o
 OBJ = $(patsubst %,$(SRC)/%,$(_OBJ))
 
 all: kisslight
 
-%.o: %.cpp $(DEPS)
+%.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 kisslight: $(OBJ)
@@ -24,6 +26,7 @@ install: kisslight
 	cp resources/kisslight.service /etc/systemd/system/
 	cp kisslight /usr/bin/
 	mkdir /var/lib/kisslight
+	mkdir /var/log/kisslight
 	sqlite3 /var/lib/kisslight/kisslight.db < resources/server-db.sql
 	systemctl daemon-reload
 	systemctl start kisslight.service
@@ -50,4 +53,4 @@ client-uninstall:
 	sudo rm /usr/bin/kl-client
 
 clean:
-	rm -f $(SRC)/*.o kl-client kisslight
+	rm -f $(SRC)/*.o $(SRC)/sqlite3/*.o kl-client kisslight

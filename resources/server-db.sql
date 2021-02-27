@@ -34,7 +34,8 @@ CREATE TABLE device (
     dev_name VARCHAR NOT NULL,
     mqtt_topic VARCHAR NOT NULL,
     dev_type INT NOT NULL,
-    dev_state INT NOT NULL, -- zero or one
+    dev_state VARCHAR NOT NULL, -- in JSON
+    valid_cmnds VARCHAR NOT NULL,
     PRIMARY KEY( dev_name )
 );
 
