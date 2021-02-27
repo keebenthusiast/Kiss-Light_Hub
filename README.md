@@ -9,17 +9,34 @@ router as an enclosed solution.
 
 ## Installation
 
-make sure the following is installed prior:
+make sure the following is done prior:
 
-- sqlite3
-- mosquitto
+- mosquitto or some other mqtt broker is ready to go.
 
-To install the prerequisites, the following command will do the trick:
+To install the mosquitto, the following command will do the trick:
 
 (for Ubuntu/Debian systems)
 
 ```shell
-sudo apt install sqlite3 libsqlite3-dev mosquitto mosquitto-clients
+sudo apt install mosquitto mosquitto-clients
+```
+
+if an mqtt broker is already installed elsewhere, edit `resources/kisslight.ini` and edit the following variable:
+
+```ini
+# Mosquitto server IP (assumed to be localhost, or 127.0.0.1)
+mqtt_server = 127.0.0.1
+```
+
+if a toolchain is ready to go, edit the `makefile` and ignore. However, this project uses llvm clang, so make sure
+that and make are installed prior. ***(WORK IN PROGRESS)***
+
+To install the those tools:
+
+(for Ubuntu/Debian systems)
+
+```shell
+sudo apt install clang make
 ```
 
 after that, run the following:
@@ -35,7 +52,7 @@ And the program should be up and running after the sudo make install step.
 
 ### WORK IN PROGRESS
 
-Anything that supports mqtt, though [Tasmota](https://tasmota.github.io/docs/) was used in developing this program.
+Anything that supports mqtt, though [Tasmota](https://tasmota.github.io/docs/) was used in developing this server.
 
 Currently supported types of devices (as of v0.2 and later):
 
@@ -43,17 +60,27 @@ Currently supported types of devices (as of v0.2 and later):
 
 - Power strip (like [this](https://templates.blakadder.com/gosund_WP9.html)) (use as dev_type 1)
 
-- Dimmable light bulbs (like [this](https://templates.blakadder.com/merkury_MI-BW320-999W.html)) (use as dev_type 2) (***UNTESTED!***)
+- Dimmable light bulbs (like [this](https://templates.blakadder.com/merkury_MI-BW320-999W.html)) (use as dev_type 2) (***NOT TESTED!***)
 
-- CCT light bulbs (like [this](https://templates.blakadder.com/mimoodz_A21.html)) (use as dev_type 3) (***UNTESTED!***)
+- CCT light bulbs (like [this](https://templates.blakadder.com/mimoodz_A21.html)) (use as dev_type 3) (***NOT TESTED!***)
 
-- RGB light bulb (like [this](https://templates.blakadder.com/moko_YX-L01C-E27.html)) (use as dev_type 4) (***UNTESTED!***)
+- RGB light bulb (like [this](https://templates.blakadder.com/moko_YX-L01C-E27.html)) (use as dev_type 4) (***NOT TESTED!***)
 
 - RGBW light bulb (like [this](https://templates.blakadder.com/merkury_MI-BW210-999W_QPW92.html)) (use as dev_type 5)
 
-- RGB CCT light bulb (like [this](https://templates.blakadder.com/aigital-LE13.html)) (use as dev_type 6) (***UNTESTED!***)
+- RGB CCT light bulb (like [this](https://templates.blakadder.com/aigital-LE13.html)) (use as dev_type 6) (***NOT TESTED!***)
 
-- Custom Mqtt devices (WORK IN PROGRESS) (use as dev_type 7)
+- Custom Mqtt devices (see below) (use as dev_type 7)
+
+Custom Mqtt device caveats:
+
+- the biggest caveat is if the server will store the state, the server will subscribe to the ***`stat/<designated topic>/RESULT`*** topic as that is the topic tasmota uses to send changes in the state. If this is important implement this as a way to relay the states, or if storing the state is not desired, ignore. (this may be changed in a later version)
+
+- another caveat is when passing in custom commands, the server will send the command arg to the ***`cmnd/<designated topic>/<command>`*** topic. If the approach is entirely different, make full use of the TRANSMIT request to compensate for this.
+
+- if there are multiple things that can be changed in a state, it is assumed that the output will be in JSON format, and that the json properties will be in consistent order, the json *MUST* be in consistent order.
+
+- if the full state JSON is smaller than the template JSON used in the program, running *`UPDATE STATE <device name> KL/<version#>`* will do the trick.
 
 ## Kiss-Light Return Codes
 
@@ -63,9 +90,9 @@ has fewer and more specific codes.
 ```plaintext
 200 series success codes:
 
-200 -- device toggled
+200 -- device power toggled
 
-201 -- device state set
+201 -- device state aspect set
 
 202 -- device added
 
@@ -78,12 +105,18 @@ has fewer and more specific codes.
 206 -- current device state
 
 207 -- client exit
+
+208 -- dev_name updated successfully
+
+209 -- mqtt_topic updated successfully
+
+210 -- dev_state updated successfully
 __________________________________________
 400 series error codes:
 
 400 -- bad request, did not understand what was sent
 
-401 -- device's state is unknown (state not initialized usually)
+401 -- device's state is unknown (not used as of v0.2 and later, subject to change)
 
 402 -- unable to remove device (doesn't exist generally)
 
@@ -98,6 +131,8 @@ __________________________________________
 407 -- not yet implemented
 
 408 -- device already exists (when trying to add a duplicate device)
+
+409 -- not enough args passed in
 __________________________________________
 500 series error codes:
 
@@ -115,32 +150,51 @@ The usage currently looks like this:
 ```shell
 computer ~ $ kl-client
 To change states of existing devices:
-
-usage: kl-client set <device name> on|off
-                   toggle <device name>
-                   send <topic> <command>
+usage: kl-client set <device name> <command> <arg>
+                 toggle <device name>
+                 send <topic> <command>
 
 Adding/deleting, status, and listing of devices:
+usage: kl-client add <device name> <mqtt_topic> <device type> (<valid_commands>)
+                (<valid_commands>) for custom or powerstrip devices.
+                 delete <device name>
+                 status <device name>
+                 list
 
-usage: kl-client add <device name> <mqtt_topic> <dev_type>
-                   delete <device name>
-                   status <device name>
-                   list
+valid device types:
+[0|outlet], [1|strip], [2|dim], [3|cct], [4|rgb][5|rgbw], [6|rgbcct], [7|custom]
+
+Updating device name, mqtt topic, or state:
+usage: kl-client update name <device name> <new device name>
+                 update topic <device name> <new mqtt topic>
+                 update state <device name>
 
 Updating server IP address, or port:
-
 usage: kl-client ip <IP address>
-                   port <port number>
-
+                 port <port number>
 ```
 
 ### Add/Delete, list, and get device status
 
-Add a device:
+Add a device (device type 0, 2 to 6):
 
 ```shell
 computer ~ $ kl-client add outlet0 topic 0
-added Device outlet0 successfully
+added device outlet0 successfully
+```
+
+Add a powerstrip device (device type 1):
+
+```shell
+computer ~ $ kl-client add strip topic2 1 4
+added device strip successfully
+```
+
+Add a custom device (device type 7):
+
+```shell
+computer ~ $ kl-client add foobar gizmo 7 POWER,STEP,SPEED
+added device foobar successfully
 ```
 
 Delete a device:
@@ -153,31 +207,53 @@ deleted device outlet0 successfully
 List devices:
 
 ```shell
-computer ~ % kl-client list
+computer ~ $ kl-client list
 here is the list of 1 devices:
 (device name -- mqtt topic -- device type)
 outlet0 -- topic -- outlet/toggleable
+```
+
+Update device name:
+
+```shell
+computer ~ $ kl-client update name outlet0 foobar
+updated device outlet0 name to foobar
+```
+
+Update device mqtt topic:
+
+```shell
+computer ~ $ kl-client update topic outlet0 newTopic
+updated device outlet0 topic to newTopic
+```
+
+Update device state (via mqtt):
+
+```shell
+computer ~ $ kl-client update state outlet0
+updated device outlet0 state
 ```
 
 Get a device's status:
 
 ```shell
 computer ~ $ kl-client status outlet0
-device outlet0 state is currently OFF
+device outlet0 state is currently:
+POWER : OFF
 ```
 
-### Change device's power states
+### Change device's states
 
 Set device on or off:
 
 ```shell
-computer ~ $ kl-client set outlet0 on
-successfully set device outlet0 on
-computer ~ $ kl-client set outlet0 off
-successfully set device outlet0 off
+computer ~ $ kl-client set outlet0 power on
+successfully set device outlet0 power
+computer ~ $ kl-client set outlet0 power off
+successfully set device outlet0 power
 ```
 
-Toggle device:
+Toggle device power:
 
 ```shell
 computer ~ $ kl-client toggle outlet0
@@ -213,7 +289,7 @@ port 2423 set
 
 It should be noted that numbers here are in decimal, unless otherwise specified.
 
-It is assumed that mosquitto has been setup prior, for now without TLS but TLS may eventually get implemented. and it will be assumed that
+It is assumed that mosquitto has been setup prior, for now without TLS but TLS may or may not eventually get implemented. and it will be assumed that
 port ```1883``` is used for mosquitto.
 
 It is also assumed that a device in use is sporting the tasmota or some other open source firmware to allow the use of mqtt, and that the device
@@ -230,23 +306,23 @@ Transmit a custom mqtt topic and command without storing it into a database:
 ```plaintext
 Template:
 TRANSMIT <full topic> <command> KL/<version#>
-KL/<version#> 200 custom command <full topic> <command> sent
+KL/<version#> 205 custom command <full topic> <command> sent
 
 Example in practice:
 TRANSMIT cmnd/tasmota/power toggle KL/0.3
-KL/0.3 200 custom command cmnd/tasmota/power toggle sent
+KL/0.3 205 custom command cmnd/tasmota/power toggle sent
 ```
 
-Toggling the saved device can be done as follows:
+Toggling the saved device's power can be done as follows:
 
 ```plaintext
 Template:
 TOGGLE <device name> KL/<version#>
-KL/<version#> 200 Device <device name> toggled
+KL/<version#> 200 Device <device name> power toggled
 
 Example in practice:
 TOGGLE outlet KL/0.3
-KL/0.3 200 device outlet toggled
+KL/0.3 200 device outlet power toggled
 ```
 
 Explicitely changing the device state:
@@ -254,32 +330,49 @@ Explicitely changing the device state:
 ```plaintext
 Template:
 SET <device name> <command> <command arg> KL/<version#>
-KL/<version#> 200 Device <device name> <On or Off>
+KL/<version#> 201 Device <device name> <command> <command arg> set
 
 Example in Practice:
-SET outlet ON KL/0.3
-KL/0.3 200 device outlet ON
-
-or
-
-SET outlet OFF KL/0.3
-KL/0.3 200 device outlet OFF
+SET outlet POWER toggle KL/0.3
+KL/0.3 201 device outlet POWER toggle set
 ```
 
 ### Adding/Deleting Devices
 
-Adding a device:
-
-***device type is not yet fully fleshed-out, it is assumed that the device in question is an outlet.
+Adding a supported device (device type 0, 2 to 6):
 
 ```plaintext
 Template:
 ADD <device name> <topic> <device type> KL/<version#>
-KL/<version#> 200 device <device name> added
+KL/<version#> 202 device <device name> added
 
 Example in practice:
 ADD outlet tasmota 0 KL/0.3
-KL/0.3 200 device outlet added
+KL/0.3 202 device outlet added
+```
+
+Adding a powerstrip device (device type 1):
+
+```plaintext
+Template:
+ADD <device name> <topic> <device type 1> <number of relays> KL/<version#>
+KL/<version#> 202 device <device name> added
+
+Example in practice:
+ADD powerstrip strip0 1 4 KL/0.3
+KL/0.3 202 device powerstrip added
+```
+
+Adding a custom device (device type 7):
+
+```plaintext
+Template:
+ADD <device name> <topic> <device type 7> <commands separated by a ','> KL/<version#>
+KL/<version#> 202 device <device name> added
+
+Example in practice:
+ADD foobar gizmo 7 POWER,STEP,SPEED KL/0.3
+KL/0.3 202 device foobar added
 ```
 
 Deleting a device:
@@ -287,11 +380,49 @@ Deleting a device:
 ```plaintext
 Template:
 DELETE <device name> KL/<version#>
-KL/<version#> 200 device <device name> deleted
+KL/<version#> 203 device <device name> deleted
 
 Example in Practice:
 DELETE outlet KL/0.2
-KL/0.3 200 device outlet deleted
+KL/0.3 203 device outlet deleted
+```
+
+### Update aspects of Device
+
+Updating a device name:
+
+```plaintext
+Template:
+UPDATE NAME <device name> <new device name> KL/<version#>
+KL/<version#> 208 dev_name <device name> updated to <new device name>
+
+Example in practice:
+UPDATE NAME foobar gadget KL/0.3
+KL/0.3 208 dev_name foobar updated to gadget
+```
+
+Updating a device's mqtt topic:
+
+```plaintext
+Template:
+UPDATE TOPIC <device name> <new mqtt topic> KL/<version#>
+KL/<version#> 209 dev_name <device name> mqtt_topic updated to <new mqtt topic>
+
+Example in practice:
+UPDATE TOPIC foobar trinket KL/0.3
+KL/0.3 209 dev_name foobar mqtt_topic updated to trinket
+```
+
+Updating a device's state (via mqtt):
+
+```plaintext
+Template:
+UPDATE STATE <device name> KL/<version#>
+KL/<version#> 210 dev_name <device name> dev_state updated
+
+Example in practice:
+UPDATE STATE foobar KL/0.3
+KL/0.3 210 dev_name foobar dev_state updated
 ```
 
 ### Status of Device(s)
@@ -301,17 +432,19 @@ List devices stored on server:
 ```plaintext
 Template:
 LIST KL/<version#>
-KL/<version#> 200 number of devices: n
+KL/<version#> 204 number of devices: n
 (n line of device names, respective topic, and dev_type as a string)
+.
 
 Example in Practice:
 LIST KL/0.3
-KL/0.3 200 number of devices: 5
+KL/0.3 204 number of devices: 5
 outlet -- tasmota -- outlet/toggleable
 strip -- strip0 -- powerstrip
 bulb -- rgbbulb0 -- rgbbulb
 lamp -- light0 -- dimmablebulb
-prototype -- prototype1 -- unkown/other
+prototype -- prototype1 -- custom
+.
 ```
 
 Retreiving a device's current state:
@@ -319,18 +452,22 @@ Retreiving a device's current state:
 ```plaintext
 Template:
 STATUS <device name> KL/<version#>
-KL/<version#> 200 device <device name> is <status>
+KL/<version#> 206 device <device name> state:
+(lines relating to state variables)
+.
 
 Example in Practice:
 STATUS outlet KL/0.3
-KL/0.3 200 device outlet is OFF
+KL/0.3 206 device outlet state:
+POWER : OFF
+.
 ```
 
 ### to Quit
 
 ```plaintext
 Q
-KL/0.2> 200 goodbye
+KL/0.3 207 goodbye
 Connection closed by foreign host.
 computer ~ $
 ```
@@ -384,12 +521,12 @@ The values in the to_change[] array correspond to the following:
 
 ```plaintext
 -1 -- No change
-0 -- Update dev_state (most likely to be changed frequently)
-1 -- Update mqtt_name
-2 -- Update mqtt_topic
-3 -- Update all of an entry (simplifies things greatly)
-4 -- Add new device to database
-5 -- Remove device from database
+ 0 -- Update dev_state (most likely to be changed frequently)
+ 1 -- Update dev_name
+ 2 -- Update mqtt_topic
+ 3 -- Update all of an entry (simplifies things greatly)
+ 4 -- Add new device to database
+ 5 -- Remove device from database
 ```
 
 ### upon exit
