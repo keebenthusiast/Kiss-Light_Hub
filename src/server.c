@@ -80,7 +80,7 @@ static int update_device( const char *req, const char *dev_name,
                           const char *arg, char *buf, int *n );
 static int change_dev_state( const char *dv_name, const char *cmd, char *msg );
 static int toggle_dev_power( const char *dv_name, const char *msg );
-static void dump_devices( int fd, const int n );
+static void dump_devices( char *buf, int *n );
 static int get_dev_state( const char *dv_name, char *buf, int *n );
 
 /*******************************************************************************
@@ -209,7 +209,6 @@ void prepare_topic( const char *prefix, const char *tpc,
  * a comma.
  *
  * @note Returns nonzero upon error.
- *
  */
 static int verify_command( const char *input, const char *cmnds )
 {
@@ -257,7 +256,7 @@ static int verify_command( const char *input, const char *cmnds )
  */
 static float get_protocol_version(char *buf)
 {
-    float protocol;
+    float protocol = -1.0;
 
     /*
      * check to make sure buf isn't empty and first part equals KL or
@@ -265,7 +264,7 @@ static float get_protocol_version(char *buf)
      */
     if ( strncasecmp( buf, "KL", 2) != 0 )
     {
-        return -1.0;
+        return protocol;
     }
 
     /* Now extract the protocol version itself */
@@ -303,8 +302,7 @@ static float get_protocol_version(char *buf)
  * @param buf the buffer to be analyzed, THEN MODIFIED.
  * @param n the buffer length, modified when buf is modified.
  *
- * @note Returns -1 when a user requests to quit,
- * Returns 1 for a list request, and Returns 0 otherwise.
+ * @note Returns -1 when a user requests to quit, Returns 0 otherwise.
  */
 static int parse_server_request( char *buf, int *n )
 {
@@ -675,12 +673,8 @@ static int parse_server_request( char *buf, int *n )
             return rv;
         }
 
-        int len = MESSAGE_204_LEN + get_digit_count(get_current_entry_count());
-        *n = snprintf( buf, len, MESSAGE_204, KL_VERSION,
-                       get_current_entry_count() );
-
         /* show the current devices to the client */
-        rv = 1;
+        dump_devices( buf, n );
     }
     // STATUS dev_name KL/version#
     else if ( strncasecmp(req_args[0], STATUS, STATUS_LEN) == 0 )
@@ -1300,15 +1294,32 @@ static int toggle_dev_power( const char *dv_name, const char *msg )
  * @brief Function that prints devices in memory when requested to list
  * devices by client.
  *
- * @param fd the socket fd of the client.
- * @param n the client's buffer number
+ * @param buf the buffer for the client, to make a tailor made response. In
+ * other words, THIS GETS MODIFIED.
+ * @param n the buffer length var. this also gets modified when buf gets
+ * modifed.
  *
  * @note This uses semaphores since it access memory to satisfy the request.
- *
- * TODO: This may need an overhaul, similar to get_dev_state()
  */
-static void dump_devices( int fd, const int n )
+static void dump_devices( char *buf, int *n )
 {
+    /* create new temporary buffers */
+    char tmp[DB_CMND_LEN];
+    char tmp_msg[conf->buffer_size];
+    char *dv_type;
+
+    /* memset buffers to prevent issues down the road */
+    memset( tmp, 0, DB_CMND_LEN );
+    memset( tmp_msg, 0, DB_CMND_LEN );
+
+    /* create first part of message */
+    int len = MESSAGE_204_LEN + get_digit_count( get_current_entry_count() );
+    snprintf( tmp, len, MESSAGE_204, KL_VERSION, get_current_entry_count() );
+    strncat( tmp_msg, tmp, len );
+
+    /* copy the current len */
+    *n = len;
+
     sem_wait( mutex );
     pthread_mutex_lock( lock );
 
@@ -1320,24 +1331,29 @@ static void dump_devices( int fd, const int n )
             continue;
         }
 
-        char *dv_type = device_type_to_str( memory[i].dev_type );
-        int response_len = (DUMP_204_LEN + strlen(memory[i].dev_name) +
+        dv_type = device_type_to_str( memory[i].dev_type );
+
+        len = (DUMP_204_LEN + strlen(memory[i].dev_name) +
                   strlen(memory[i].mqtt_topic) + strlen(dv_type));
 
-        snprintf( server_buffer[n], response_len, DUMP_204,
-                  memory[i].dev_name, memory[i].mqtt_topic, dv_type );
+        snprintf( tmp, len, DUMP_204, memory[i].dev_name,
+                  memory[i].mqtt_topic, dv_type );
 
-        int status = write( fd, server_buffer[n], response_len );
+        strncat( tmp_msg, tmp, len );
 
-        /* client must have disconnected, move on */
-        /* set equal to 0 if bugs come up! */
-        if ( status <= 0 )
-        {
-            close( fd );
-            fd = -1;
-            break;
-        }
+        /* increment total len */
+        *n += len;
+        *n -= 1;
     }
+
+    /* create a terminating character for this. */
+    strncat( tmp_msg, ".\n", 3 );
+
+    /* increment total len */
+    *n += 2;
+
+    /* finally copy over to the buffer */
+    strncpy( buf, tmp_msg, *n );
 
     pthread_mutex_unlock( lock );
     sem_post( mutex );
@@ -1529,10 +1545,6 @@ static void server_connection_handler( struct pollfd *connfds, const int num )
             {
                 close( connfds[count].fd );
                 connfds[count].fd = -1;
-            }
-            else if ( status )
-            {
-                dump_devices( connfds[count].fd, (count - 1) );
             }
         }
     }
