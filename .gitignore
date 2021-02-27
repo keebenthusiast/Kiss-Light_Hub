@@ -1,4 +1,5 @@
 kl-client
 kisslight
 src/*.o
+src/sqlite3/*.o
 src/old\ code

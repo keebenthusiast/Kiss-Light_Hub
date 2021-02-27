@@ -27,8 +27,10 @@
 // local includes
 #include "server.h"
 #include "daemon.h"
-#include "common.h"
+
+#ifdef DEBUG
 #include "log.h"
+#endif
 
 // local pid file descriptor
 static int pid_fd = -1;
@@ -46,7 +48,9 @@ void handle_signal( int sig )
     /* Stop the daemon... cleanly. */
     if ( sig == SIGINT )
     {
+#ifdef DEBUG
         log_trace( "Stopping server" );
+#endif
 
         if ( isDaemon )
         {
@@ -73,17 +77,23 @@ void handle_signal( int sig )
     /* Ignore a given SIGCHLD. */
     else if ( sig == SIGCHLD )
     {
+#ifdef DEBUG
         log_debug( "received SIGCHLD signal, ignored" );
+#endif
     }
     /* Ignore a given SIGHUP */
     else if ( sig == SIGHUP )
     {
+#ifdef DEBUG
         log_debug( "received SIGHUP signal, ignored" );
+#endif
     }
     /* Ignore anything else too. */
     else
     {
+#ifdef DEBUG
         log_debug( "Received signal not implemented to be handled: %d", sig );
+#endif
     }
 
 }
@@ -95,7 +105,10 @@ void handle_signal( int sig )
  */
 static int daemonize()
 {
+#ifdef DEBUG
     log_trace( "Daemonizing" );
+#endif
+
     pid_t pid = 0;
     int fd;
 
@@ -105,7 +118,10 @@ static int daemonize()
     /* Error forking occurred. */
     if ( pid < 0 )
     {
+#ifdef DEBUG
         log_fatal( "Unable to fork from parent process" );
+#endif
+
         return EXIT_FAILURE;
     }
 
@@ -119,7 +135,10 @@ static int daemonize()
     /* Set the child process to become the new session leader. */
     if ( setsid() < 0 )
     {
+#ifdef DEBUG
         log_fatal( "Unable to set child process to become session leader" );
+#endif
+
         return EXIT_FAILURE;
     }
 
@@ -136,7 +155,10 @@ static int daemonize()
     /* Error forking occurred.. */
     if ( pid < 0 )
     {
+#ifdef DEBUG
         log_fatal( "Unable to fork the second time" );
+#endif
+
         return EXIT_FAILURE;
     }
 
@@ -153,7 +175,10 @@ static int daemonize()
     /* Change the working directory to another dir */
     if ( (chdir( "/" )) < 0 )
     {
+#ifdef DEBUG
         log_fatal( "Unable to chdir to '/'" );
+#endif
+
         return EXIT_FAILURE;
     }
 
@@ -176,14 +201,19 @@ static int daemonize()
         if ( pid_fd < 0 )
         {
             /* Cannot open lockfile. */
+#ifdef DEBUG
             log_fatal( "Unable to open lockfile" );
+#endif
+
             return EXIT_FAILURE;
         }
 
         if ( lockf(pid_fd, F_TLOCK, 0) < 0 )
         {
             /* Cannot lock lockfile. */
+#ifdef DEBUG
             log_fatal( "Unable to lock the lockfile" );
+#endif
             return EXIT_FAILURE;
         }
 
