@@ -1,6 +1,8 @@
 SRC = src
 CC = clang
-CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 #-DLOG_USE_COLOR -DDEBUG -g
+CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 \
+#-DLOG_USE_COLOR -DDEBUG -g \
+#-DUSING_TOOLCHAIN
 LIBS = -pthread -lrt -ldl
 
 _DEPS =  daemon.h ini.h args.h log.h config.h \
