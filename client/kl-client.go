@@ -581,9 +581,24 @@ func main() {
   }
 
   /* connect to this socket, and port */
-  conn, _ := net.Dial( "tcp", cfg.Section("network").Key("ipaddr").String() +
+  conn, err := net.Dial( "tcp", cfg.Section("network").Key("ipaddr").String() +
                         ":" + strconv.Itoa(cfg.Section("network").Key(
                         "port").RangeInt(1155, 1, 65535)) )
+
+  /* Handle error should it occur */
+  if ( err != nil ) {
+
+    fmt.Println( "Unable to connect to " + cfg.Section("network").Key(
+                 "ipaddr").String() + ":" + strconv.Itoa(cfg.Section(
+                 "network").Key("port").RangeInt(1155, 1, 65535)) +
+                 ", is the server running?" )
+    fmt.Println( "need to update these settings?" );
+    fmt.Println( "\nUpdating server IP address, or port:" )
+    fmt.Println( "usage: " + os.Args[0] + " ip <IP address>" )
+    fmt.Println( "                " + " port <port number>" )
+
+    os.Exit( 1 )
+  }
 
   /* ignore socket closing errors. */
   defer conn.Close()
