@@ -188,9 +188,11 @@ static int daemonize()
         close( fd );
     }
 
+#ifndef USING_TOOLCHAIN
     stdin = fopen( "/dev/null", "r" );
     stdout = fopen( "/dev/null", "w+" );
     stderr = fopen( "/dev/null", "w+" );
+#endif
 
     /* Now to write PID of daemon to Lockfile, then done. */
     if ( PIDFILE != NULL )
