@@ -74,7 +74,7 @@ Currently supported types of devices (as of v0.2 and later):
 
 Custom Mqtt device caveats:
 
-- the biggest caveat is if the server will store the state, the server will subscribe to the ***`stat/<designated topic>/RESULT`*** topic as that is the topic tasmota uses to send changes in the state. If this is important implement this as a way to relay the states, or if storing the state is not desired, ignore. (this may be changed in a later version)
+- the biggest caveat is if the server will store the state, the server will subscribe to the ***`stat/<designated topic>/RESULT`*** topic as that is the topic tasmota uses to send changes in the state. It is important to implement this as a way to relay the states, or if storing the state is not desired, ignore. (this may be changed in a later version)
 
 - another caveat is when passing in custom commands, the server will send the command arg to the ***`cmnd/<designated topic>/<command>`*** topic. If the approach is entirely different, make full use of the TRANSMIT request to compensate for this.
 

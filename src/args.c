@@ -54,7 +54,7 @@ int process_args( int argc, char **argv )
     {
         if ( strncmp( argv[1], "daemon", 7) == 0 )
         {
-            //rv = run_as_daemon();
+            rv = run_as_daemon();
         }
     }
 

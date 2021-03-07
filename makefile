@@ -28,7 +28,8 @@ install: kisslight
 	cp kisslight /usr/bin/
 	mkdir /var/lib/kisslight
 	mkdir /var/log/kisslight
-	sqlite3 /var/lib/kisslight/kisslight.db < resources/server-db.sql
+	#sqlite3 /var/lib/kisslight/kisslight.db < resources/server-db.sql
+	cp resources/kisslight.db /var/lib/kisslight/kisslight.db
 	systemctl daemon-reload
 	systemctl start kisslight.service
 	systemctl enable kisslight.service
@@ -39,6 +40,7 @@ uninstall:
 	rm -f /etc/kisslight.ini /etc/systemd/system/kisslight.service
 	rm -f /usr/bin/kisslight
 	rm -rf /var/lib/kisslight
+	rm -rf /var/log/kisslight
 	systemctl daemon-reload
 
 client: client/kl-client.go
