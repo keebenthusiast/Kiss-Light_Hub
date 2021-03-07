@@ -129,7 +129,14 @@ static int daemonize()
     if ( pid > 0 )
     {
         /* So the parent process can free its resource before exiting */
-        return EXIT_FAILURE;
+        //return EXIT_FAILURE;
+
+        /*
+         * Unfortunately Systemd will complain if this does not
+         * exit 0, though if a device is big enough to run systemd,
+         * chances are the OS will clean up after us.
+         */
+        exit( 0 );
     }
 
     /* Set the child process to become the new session leader. */
@@ -165,8 +172,15 @@ static int daemonize()
     /* Though if successful, terminate the parent process. */
     if ( pid > 0 )
     {
-       /* So the parent process can free its resource before exiting */
-        return EXIT_FAILURE;
+        /* So the parent process can free its resource before exiting */
+        //return EXIT_FAILURE;
+
+        /*
+         * Unfortunately Systemd will complain if this does not
+         * exit 0, though if a device is big enough to run systemd,
+         * chances are the OS will clean up after us.
+         */
+        exit( 0 );
     }
 
     /* Set new file permissions. */
