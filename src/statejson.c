@@ -16,7 +16,7 @@
 
 // local includes
 #include "statejson.h"
-#include "jsmn.h"
+#include "jsmn/jsmn.h"
 
 /**
  * @brief Simple function to do the strncmp work for the programmer.

@@ -1,5 +1,6 @@
-kl-client
-kisslight
-src/*.o
-src/sqlite3/*.o
 src/old\ code
+src/*.o
+src/inih/*.o
+src/sqlite3/*.o
+src/log/*.o
+src/mqttc/*.o

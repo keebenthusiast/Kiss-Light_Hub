@@ -21,10 +21,10 @@
 #include "database.h"
 #include "config.h"
 #include "daemon.h"
-#include "ini.h"
+#include "inih/ini.h"
 
 #ifdef DEBUG
-#include "log.h"
+#include "log/log.h"
 #endif
 
 // pointer to config cfg;

@@ -30,10 +30,10 @@
 #include "database.h"
 #include "daemon.h"
 #include "server.h"
-#include "mqtt.h"
+#include "mqttc/mqtt.h"
 
 #ifdef DEBUG
-#include "log.h"
+#include "log/log.h"
 #endif
 
 /*

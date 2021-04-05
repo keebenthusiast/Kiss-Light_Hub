@@ -37,11 +37,11 @@
 #include "config.h"
 #include "database.h"
 #include "daemon.h"
-#include "mqtt.h"
+#include "mqttc/mqtt.h"
 #include "statejson.h"
 
 #ifdef DEBUG
-#include "log.h"
+#include "log/log.h"
 #endif
 
 // pointer to config cfg;

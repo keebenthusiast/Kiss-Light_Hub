@@ -1,28 +1,36 @@
 SRC = src
+OBJ = obj
+BIN = bin/kisslight
+CLIENT_BIN = bin/kl-client
 CC = clang
 CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 \
 #-DUSING_TOOLCHAIN #-DLOG_USE_COLOR -DDEBUG -g
 LIBS = -pthread -lrt -ldl
 
-_DEPS =  daemon.h ini.h args.h log.h config.h \
-server.h main.h mqtt.h mqtt_pal.h database.h \
-statejson.h jsmn.h sqlite3/sqlite.h
-DEPS = $(patsubst %,$(SRC)/%,$(_DEPS))
+rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) \
+$(filter $(subst *,%,$2),$d))
+DEPS = $(call rwildcard,src,*.h)
+SRCS = $(call rwildcard,src,*.c)
+OBJS = $(SRCS:.c=.o)
 
-_OBJ = log.o server.o daemon.o args.o config.o \
-ini.o main.o mqtt.o mqtt_pal.o database.o \
-statejson.o sqlite3/sqlite3.o
-OBJ = $(patsubst %,$(SRC)/%,$(_OBJ))
+all: $(BIN)
 
-all: kisslight
+release: CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 -O2
+release: $(BIN)
+
+debug: CFLAGS= -Wall -DSQLITE_ENABLE_MEMSYS5 -DLOG_USE_COLOR -DDEBUG -g
+debug: $(BIN)
+
+target: CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 -DUSING_TOOLCHAIN
+target: $(BIN)
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-kisslight: $(OBJ)
+$(BIN): $(OBJS)
 	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
 
-install: kisslight
+install: $(BIN)
 	cp resources/kisslight.ini /etc/
 	cp resources/kisslight.service /etc/systemd/system/
 	cp kisslight /usr/bin/
@@ -44,7 +52,7 @@ uninstall:
 	systemctl daemon-reload
 
 client: client/kl-client.go
-	go build client/kl-client.go
+	go build -o $(CLIENT_BIN) client/kl-client.go
 
 client-install: client
 	mkdir -p /home/$(USER)/.config/kisslight
@@ -56,4 +64,4 @@ client-uninstall:
 	sudo rm /usr/bin/kl-client
 
 clean:
-	rm -f $(SRC)/*.o $(SRC)/sqlite3/*.o kl-client kisslight
+	rm -f $(OBJS) $(CLIENT_BIN) $(BIN)

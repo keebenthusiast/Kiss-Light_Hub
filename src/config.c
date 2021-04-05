@@ -20,10 +20,10 @@
 
 // local includes
 #include "config.h"
-#include "ini.h"
+#include "inih/ini.h"
 
 #ifdef DEBUG
-#include "log.h"
+#include "log/log.h"
 #endif
 
 /*******************************************************************************

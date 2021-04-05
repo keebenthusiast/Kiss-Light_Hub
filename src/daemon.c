@@ -29,7 +29,7 @@
 #include "daemon.h"
 
 #ifdef DEBUG
-#include "log.h"
+#include "log/log.h"
 #endif
 
 // local pid file descriptor

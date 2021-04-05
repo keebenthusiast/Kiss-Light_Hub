@@ -27,7 +27,7 @@
 /* To make sure config data type is known about. */
 #include "config.h"
 #include "database.h"
-#include "mqtt.h"
+#include "mqttc/mqtt.h"
 
 
 /* Constants for server */
