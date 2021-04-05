@@ -51,7 +51,7 @@ uninstall:
 	rm -rf /var/log/kisslight
 	systemctl daemon-reload
 
-client: client/kl-client.go
+kl-client: client/kl-client.go
 	go build -o $(CLIENT_BIN) client/kl-client.go
 
 client-install: client
