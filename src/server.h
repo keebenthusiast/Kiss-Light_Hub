@@ -34,35 +34,32 @@
 #define KL_VERSION 0.3
 
 // response strings (in order)
-#define MESSAGE_200 ((const char *)"KL/%.1f 200 device %s power toggled\n")
-#define MESSAGE_201 ((const char *)"KL/%.1f 201 device %s %s %s set\n")
-#define MESSAGE_202 ((const char *)"KL/%.1f 202 device %s added\n")
-#define MESSAGE_203 ((const char *)"KL/%.1f 203 device %s deleted\n")
-#define MESSAGE_204 ((const char *)"KL/%.1f 204 number of devices: %d\n")
+#define MESSAGE_200 ((const char *)"KL/%.1f 200 toggled %s\n")
+#define MESSAGE_201 ((const char *)"KL/%.1f 201 %s %s %s\n")
+#define MESSAGE_202 ((const char *)"KL/%.1f 202 added %s\n")
+#define MESSAGE_203 ((const char *)"KL/%.1f 203 deleted %s\n")
+#define MESSAGE_204 ((const char *)"KL/%.1f 204 %d\n")
 #define DUMP_204    ((const char *)"%s -- %s -- %s\n")
-#define MESSAGE_205 ((const char *)"KL/%.1f 205 custom command %s %s sent\n")
-#define MESSAGE_206 ((const char *)"KL/%.1f 206 device %s state:\n")
+#define MESSAGE_205 ((const char *)"KL/%.1f 205 sent %s %s\n")
+#define MESSAGE_206 ((const char *)"KL/%.1f 206 %s state:\n")
 #define MESSAGE_207 ((const char *)"KL/%.1f 207 goodbye\n")
-#define MESSAGE_208 ((const char *)"KL/%.1f 208 dev_name %s updated to %s\n")
-#define MESSAGE_209 ((const char *)"KL/%.1f 209 dev_name %s mqtt_topic " \
-"updated to %s\n")
-#define MESSAGE_210 ((const char *)"KL/%.1f 210 dev_name %s dev_state " \
-"updated\n")
+#define MESSAGE_208 ((const char *)"KL/%.1f 208 %s -> %s\n")
+#define MESSAGE_209 ((const char *)"KL/%.1f 209 %s -> %s\n")
+#define MESSAGE_210 ((const char *)"KL/%.1f 210 updated %s\n")
 
 #define MESSAGE_400 ((const char *)"KL/%.1f 400 bad request\n")
 //#define MESSAGE_401 ((const char *)"KL/%.1f 401 device %s state unknown\n")
-#define MESSAGE_402 ((const char *)"KL/%.1f 402 unable to delete %s\n")
-#define MESSAGE_403 ((const char *)"KL/%.1f 403 unable to add device %s\n")
-#define MESSAGE_404 ((const char *)"KL/%.1f 404 no such device %s\n")
+#define MESSAGE_402 ((const char *)"KL/%.1f 402 cannot delete %s\n")
+#define MESSAGE_403 ((const char *)"KL/%.1f 403 cannot add %s\n")
+#define MESSAGE_404 ((const char *)"KL/%.1f 404 cannot find %s\n")
 #define MESSAGE_405 ((const char *)"KL/%.1f 405 incorrect input %s\n")
-#define MESSAGE_406 ((const char *)"KL/%.1f 406 cannot detect KL version\n")
+#define MESSAGE_406 ((const char *)"KL/%.1f 406 KL version missing\n")
 #define MESSAGE_407 ((const char *)"KL/%.1f 407 not yet implemented\n")
-#define MESSAGE_408 ((const char *)"KL/%.1f 408 device %s already exists\n")
-#define MESSAGE_409 ((const char *)"KL/%.1f 409 not enough args passed in\n")
+#define MESSAGE_408 ((const char *)"KL/%.1f 408 already exists %s\n")
+#define MESSAGE_409 ((const char *)"KL/%.1f 409 not enough args\n")
 
-#define MESSAGE_500 ((const char *)"KL/%.1f 500 internal error: %s\n")
-#define MESSAGE_505 ((const char *)"KL/0.3 505 client capacity full, " \
-                    "try again later\n")
+#define MESSAGE_500 ((const char *)"KL/%.1f 500 internal error: %s\n") // MODIFIED LEN: LEN -
+#define MESSAGE_505 ((const char *)"KL/0.3 505 client capacity full\n")
 
 
 /* relating to requests */
@@ -84,6 +81,7 @@
 // mqtt topic prefix
 #define STAT        ((const char *)"stat/")
 #define CMND        ((const char *)"cmnd/")
+#define TELE        ((const char *)"tele/")
 
 // mqtt topic suffix
 #define RESULT      ((const char *)"/RESULT")
@@ -104,30 +102,30 @@ enum {
     /*
      * Response messages
      */
-    MESSAGE_200_LEN = 34,
-    MESSAGE_201_LEN = 26,
-    MESSAGE_202_LEN = 26,
-    MESSAGE_203_LEN = 28,
-    MESSAGE_204_LEN = 32,
+    MESSAGE_200_LEN = 21,
+    MESSAGE_201_LEN = 15,
+    MESSAGE_202_LEN = 19,
+    MESSAGE_203_LEN = 21,
+    MESSAGE_204_LEN = 13,
     DUMP_204_LEN = 10,
-    MESSAGE_205_LEN = 34,
-    MESSAGE_206_LEN = 27,
+    MESSAGE_205_LEN = 20,
+    MESSAGE_206_LEN = 20,
     MESSAGE_207_LEN = 20,
-    MESSAGE_208_LEN = 34,
-    MESSAGE_209_LEN = 45,
-    MESSAGE_210_LEN = 40,
+    MESSAGE_208_LEN = 17,
+    MESSAGE_209_LEN = 8,
+    MESSAGE_210_LEN = 30,
     MESSAGE_400_LEN = 24,
     //MESSAGE_401_LEN = 34,
-    MESSAGE_402_LEN = 30,
-    MESSAGE_403_LEN = 34,
-    MESSAGE_404_LEN = 28,
+    MESSAGE_402_LEN = 27,
+    MESSAGE_403_LEN = 24,
+    MESSAGE_404_LEN = 25,
     MESSAGE_405_LEN = 29,
-    MESSAGE_406_LEN = 37,
+    MESSAGE_406_LEN = 31,
     MESSAGE_407_LEN = 32,
-    MESSAGE_408_LEN = 35,
-    MESSAGE_409_LEN = 38,
+    MESSAGE_408_LEN = 28,
+    MESSAGE_409_LEN = 28,
     MESSAGE_500_LEN = 29,
-    MESSAGE_505_LEN = 50,
+    MESSAGE_505_LEN = 33,
 
     // for requests
     TRANSMIT_LEN = 8,
@@ -158,6 +156,7 @@ enum {
     // prefix (for topics)
     STAT_LEN = 6,
     CMND_LEN = 6,
+    TELE_LEN = 6,
 
     // result suffix (for topics)
     RESULT_LEN = 8,

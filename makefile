@@ -3,8 +3,7 @@ OBJ = obj
 BIN = bin/kisslight
 CLIENT_BIN = bin/kl-client
 CC = clang
-CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5 \
-#-DUSING_TOOLCHAIN #-DLOG_USE_COLOR -DDEBUG -g
+CFLAGS = -Wall -DSQLITE_ENABLE_MEMSYS5
 LIBS = -pthread -lrt -ldl
 
 rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) \
