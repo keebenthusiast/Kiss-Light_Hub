@@ -318,11 +318,11 @@ Toggling the saved device's power can be done as follows:
 ```plaintext
 Template:
 TOGGLE <device name> KL/<version#>
-KL/<version#> 200 Device <device name> power toggled
+KL/<version#> 200 toggled <device name>
 
 Example in practice:
 TOGGLE outlet KL/0.3
-KL/0.3 200 device outlet power toggled
+KL/0.3 200 toggled outlet
 ```
 
 Explicitely changing the device state:
@@ -330,11 +330,11 @@ Explicitely changing the device state:
 ```plaintext
 Template:
 SET <device name> <command> <command arg> KL/<version#>
-KL/<version#> 201 Device <device name> <command> <command arg> set
+KL/<version#> 201 <device name> <command> <command arg>
 
 Example in Practice:
 SET outlet POWER toggle KL/0.3
-KL/0.3 201 device outlet POWER toggle set
+KL/0.3 201 outlet POWER toggle
 ```
 
 ### Adding/Deleting Devices
@@ -344,11 +344,11 @@ Adding a supported device (device type 0, 2 to 6):
 ```plaintext
 Template:
 ADD <device name> <topic> <device type> KL/<version#>
-KL/<version#> 202 device <device name> added
+KL/<version#> 202 added <device name>
 
 Example in practice:
 ADD outlet tasmota 0 KL/0.3
-KL/0.3 202 device outlet added
+KL/0.3 202 added outlet
 ```
 
 Adding a powerstrip device (device type 1):
@@ -356,11 +356,11 @@ Adding a powerstrip device (device type 1):
 ```plaintext
 Template:
 ADD <device name> <topic> <device type 1> <number of relays> KL/<version#>
-KL/<version#> 202 device <device name> added
+KL/<version#> 202 added <device name>
 
 Example in practice:
 ADD powerstrip strip0 1 4 KL/0.3
-KL/0.3 202 device powerstrip added
+KL/0.3 202 added powerstrip
 ```
 
 Adding a custom device (device type 7):
@@ -368,11 +368,11 @@ Adding a custom device (device type 7):
 ```plaintext
 Template:
 ADD <device name> <topic> <device type 7> <commands separated by a ','> KL/<version#>
-KL/<version#> 202 device <device name> added
+KL/<version#> 202 added <device name>
 
 Example in practice:
 ADD foobar gizmo 7 POWER,STEP,SPEED KL/0.3
-KL/0.3 202 device foobar added
+KL/0.3 202 added foobar
 ```
 
 Deleting a device:
@@ -380,11 +380,11 @@ Deleting a device:
 ```plaintext
 Template:
 DELETE <device name> KL/<version#>
-KL/<version#> 203 device <device name> deleted
+KL/<version#> 203 deleted <device name>
 
 Example in Practice:
 DELETE outlet KL/0.2
-KL/0.3 203 device outlet deleted
+KL/0.3 203 deleted outlet
 ```
 
 ### Update aspects of Device
@@ -394,11 +394,11 @@ Updating a device name:
 ```plaintext
 Template:
 UPDATE NAME <device name> <new device name> KL/<version#>
-KL/<version#> 208 dev_name <device name> updated to <new device name>
+KL/<version#> 208 <device name> -> <new device name>
 
 Example in practice:
 UPDATE NAME foobar gadget KL/0.3
-KL/0.3 208 dev_name foobar updated to gadget
+KL/0.3 208 foobar -> gadget
 ```
 
 Updating a device's mqtt topic:
@@ -406,11 +406,11 @@ Updating a device's mqtt topic:
 ```plaintext
 Template:
 UPDATE TOPIC <device name> <new mqtt topic> KL/<version#>
-KL/<version#> 209 dev_name <device name> mqtt_topic updated to <new mqtt topic>
+KL/<version#> 209 <device name> -> <new mqtt topic>
 
 Example in practice:
 UPDATE TOPIC foobar trinket KL/0.3
-KL/0.3 209 dev_name foobar mqtt_topic updated to trinket
+KL/0.3 209 foobar -> trinket
 ```
 
 Updating a device's state (via mqtt):
@@ -418,11 +418,11 @@ Updating a device's state (via mqtt):
 ```plaintext
 Template:
 UPDATE STATE <device name> KL/<version#>
-KL/<version#> 210 dev_name <device name> dev_state updated
+KL/<version#> 210 updated <device name>
 
 Example in practice:
 UPDATE STATE foobar KL/0.3
-KL/0.3 210 dev_name foobar dev_state updated
+KL/0.3 210 updated foobar
 ```
 
 ### Status of Device(s)
@@ -432,13 +432,13 @@ List devices stored on server:
 ```plaintext
 Template:
 LIST KL/<version#>
-KL/<version#> 204 number of devices: n
+KL/<version#> 204 n
 (n line of device names, respective topic, and dev_type as a string)
 .
 
 Example in Practice:
 LIST KL/0.3
-KL/0.3 204 number of devices: 5
+KL/0.3 5
 outlet -- tasmota -- outlet/toggleable
 strip -- strip0 -- powerstrip
 bulb -- rgbbulb0 -- rgbbulb
@@ -452,13 +452,13 @@ Retreiving a device's current state:
 ```plaintext
 Template:
 STATUS <device name> KL/<version#>
-KL/<version#> 206 device <device name> state:
+KL/<version#> 206 <device name> state:
 (lines relating to state variables)
 .
 
 Example in Practice:
 STATUS outlet KL/0.3
-KL/0.3 206 device outlet state:
+KL/0.3 206 outlet state:
 POWER : OFF
 .
 ```

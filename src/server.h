@@ -58,7 +58,7 @@
 #define MESSAGE_408 ((const char *)"KL/%.1f 408 already exists %s\n")
 #define MESSAGE_409 ((const char *)"KL/%.1f 409 not enough args\n")
 
-#define MESSAGE_500 ((const char *)"KL/%.1f 500 internal error: %s\n") // MODIFIED LEN: LEN -
+#define MESSAGE_500 ((const char *)"KL/%.1f 500 internal error: %s\n")
 #define MESSAGE_505 ((const char *)"KL/0.3 505 client capacity full\n")
 
 
@@ -124,7 +124,7 @@ enum {
     MESSAGE_407_LEN = 32,
     MESSAGE_408_LEN = 28,
     MESSAGE_409_LEN = 28,
-    MESSAGE_500_LEN = 29,
+    MESSAGE_500_LEN = 25,
     MESSAGE_505_LEN = 33,
 
     // for requests
